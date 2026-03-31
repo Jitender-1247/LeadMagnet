@@ -1,0 +1,60 @@
+<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sg" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#007a66"/>
+      <stop offset="100%" stop-color="#00ffcc"/>
+    </linearGradient>
+    <linearGradient id="eg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe066"/>
+      <stop offset="100%" stop-color="#ff9900"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="120" height="120" rx="24" fill="#0d1117"/>
+  <rect x="1" y="1" width="118" height="118" rx="23" fill="none" stroke="#00d4b4" stroke-width="1.5" opacity="0.5"/>
+
+  <!-- S body — top curve -->
+  <path d="M76 35 C76 25,62 18,50 22 C38 26,32 36,36 46 C40 56,54 58,60 62"
+    fill="none" stroke="url(#sg)" stroke-width="13" stroke-linecap="round"/>
+  <!-- S body — bottom curve -->
+  <path d="M44 62 C38 66,32 74,36 84 C40 94,54 100,66 96 C78 92,84 82,80 72"
+    fill="none" stroke="url(#sg)" stroke-width="13" stroke-linecap="round"/>
+
+  <!-- Belly top -->
+  <path d="M73 37 C73 28,61 22,51 25 C41 28,36 37,39 46 C42 53,53 57,59 61"
+    fill="none" stroke="#00ffcc" stroke-width="4" stroke-linecap="round" opacity="0.3"/>
+  <!-- Belly bottom -->
+  <path d="M47 63 C41 67,36 75,39 83 C42 91,54 97,64 94 C74 91,79 82,76 73"
+    fill="none" stroke="#00ffcc" stroke-width="4" stroke-linecap="round" opacity="0.3"/>
+
+  <!-- Tail -->
+  <path d="M80 72 L91 79" stroke="#007a66" stroke-width="5" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Head -->
+  <ellipse cx="74" cy="32" rx="12" ry="9" fill="#00d4b4"/>
+  <path d="M82 28 Q92 30,90 38 Q88 44,80 42 L80 24 Q88 22,82 28Z" fill="#00d4b4"/>
+  <path d="M86 40 Q92 44,88 50 Q84 54,78 52 L78 42Z" fill="#009e88"/>
+
+  <!-- Tongue -->
+  <path d="M90 45 L101 40 M90 45 L101 50" stroke="#ff3366" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+
+  <!-- Fang -->
+  <polygon points="82,42 79,52 85,42" fill="#e8f0ee" opacity="0.9"/>
+
+  <!-- Eye -->
+  <ellipse cx="70" cy="27" rx="4" ry="3.5" fill="url(#eg)"/>
+  <ellipse cx="70" cy="27" rx="1.2" ry="3" fill="#1a0a00"/>
+  <ellipse cx="69" cy="25.5" rx="1" ry="0.8" fill="#ffffff" opacity="0.7"/>
+
+  <!-- Scale marks on S -->
+  <g stroke="#00ffcc" stroke-width="1" fill="none" opacity="0.25">
+    <path d="M52 27 Q50 23 48 27"/>
+    <path d="M42 40 Q40 36 38 40"/>
+    <path d="M40 55 Q38 51 36 55"/>
+    <path d="M48 66 Q46 62 44 66"/>
+    <path d="M40 78 Q38 74 36 78"/>
+    <path d="M52 90 Q50 86 48 90"/>
+    <path d="M64 95 Q62 91 60 95"/>
+  </g>
+</svg>
