@@ -16,42 +16,68 @@ function randomDelay(min = 500, max = 1500) {
 }
 
 // ── Create a stealth browser ─────────────────────────────────────────────────
+// Replace your existing launchBrowser with this
 async function launchBrowser() {
-    return await puppeteer.launch({
-        headless: true,
+    // PROXY_URL format: http://username:password@proxy-provider.com:port
+    const proxyUrl = 'http://username-session-uniqueid123:password@proxy.provider.com:8080'; 
+
+    const args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-infobars',
+        '--window-position=0,0',
+        '--ignore-certificate-errors',
+        '--ignore-certificate-errors-spki-list',
+    ];
+
+    if (proxyUrl) {
+        args.push(`--proxy-server=${proxyUrl}`);
+    }
+
+    const browser = await puppeteer.launch({
+        headless: "new", // Use 'new' for better stealth than true/false
         executablePath: executablePath(),
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-blink-features=AutomationControlled'
-        ],
+        args,
         defaultViewport: { width: 1366, height: 768 }
     });
+
+    // Handle Proxy Authentication if required
+    if (proxyUrl && process.env.PROXY_USERNAME) {
+        const page = await browser.newPage();
+        await page.authenticate({
+            username: process.env.PROXY_USERNAME,
+            password: process.env.PROXY_PASSWORD,
+        });
+    }
+
+    return browser;
 }
 
 // ── Set up a page with cookie + request interception ────────────────────────
 async function setupPage(browser, liAt) {
     const page = await browser.newPage();
 
+    // 1. Set a realistic viewport to match common desktop screens
+    await page.setViewport({ width: 1440, height: 900 });
+
     page.setDefaultNavigationTimeout(60000);
     page.setDefaultTimeout(60000);
 
+    // 2. Request Interception (Optimized for speed + stealth)
     await page.setRequestInterception(true);
     page.on('request', (req) => {
         const resourceType = req.resourceType();
         const url = req.url();
 
-        if (['media', 'font'].includes(resourceType)) {
+        if (['media', 'font', 'stylesheet'].includes(resourceType) && !url.includes('linkedin.com')) {
             req.abort();
             return;
         }
 
         if (resourceType === 'image') {
-            if (
-                url.includes('media.licdn.com') ||
-                url.includes('profile-displayphoto') ||
-                url.includes('shrink_')
-            ) {
+            // Only allow LinkedIn hosted images (profile photos/icons)
+            if (url.includes('licdn.com') || url.includes('linkedin.com')) {
                 req.continue();
             } else {
                 req.abort();
@@ -62,29 +88,48 @@ async function setupPage(browser, liAt) {
         req.continue();
     });
 
+    // 3. Deep Stealth: Override navigator properties
     await page.evaluateOnNewDocument(() => {
+        // Pass the Webdriver Test
         Object.defineProperty(navigator, 'webdriver', { get: () => false });
-        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
+        // Mock hardware concurrency
+        Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 4 });
+        // Mock Languages and Plugins
         Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
     });
 
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+    // 4. Dynamic User-Agent (Fixes the automation mismatch)
+    let userAgent = await browser.userAgent();
+    userAgent = userAgent.replace(/HeadlessChrome/g, "Chrome"); // Strip the "Headless" tag
+    await page.setUserAgent(userAgent);
 
-    await page.goto('https://www.linkedin.com', {
-        waitUntil: 'domcontentloaded',
-        timeout: 30000
+    // 5. Add a "Referer" to look like a natural click from Google
+    await page.setExtraHTTPHeaders({
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://www.google.com/' 
     });
 
-    await page.setCookie({
-        name: 'li_at',
-        value: liAt,
-        domain: '.linkedin.com',
-        path: '/',
-        httpOnly: true,
-        secure: true,
-        sameSite: 'None'
-    });
+    // 6. Cookie Injection Sequence
+    // We visit the domain first so the browser context is initialized for linkedin.com
+    try {
+        await page.goto('https://www.linkedin.com', {
+            waitUntil: 'domcontentloaded',
+            timeout: 30000
+        });
+
+        await page.setCookie({
+            name: 'li_at',
+            value: liAt,
+            domain: '.linkedin.com',
+            path: '/',
+            httpOnly: true,
+            secure: true,
+            sameSite: 'None'
+        });
+    } catch (err) {
+        console.error("Initial page load or cookie injection failed:", err.message);
+    }
 
     return page;
 }
@@ -277,19 +322,23 @@ async function sendConnectionOnPage(page, messageTemplate, name, index = 0) {
 // ── Step 3: Find Connect — it's an <a> tag not a <button>! ───────────
 let connectElement = null;
 
-// Strategy 1: aria-label on <a> tag with lead's name
+// Strategy 1: Fixed Syntax Error
 if (name) {
     const firstName = name.split(' ')[0];
     const fullName = name.split(' ').slice(0, 2).join(' ');
+    const variants = [fullName, firstName];
 
-    for (const variant of [fullName, firstName]) {
-        // ✅ Search <a> tags, not <button> tags
-        const el = await page.$(`a[aria-label*="${variant}"][aria-label*="onnect"]`);
+    for (const v of variants) {
+        // Corrected selector and variable usage
+        // This is the "clean" version that handles both cases ("Connect" and "connect") in one go
+        const el = await page.$(`a[aria-label*="${v}"][aria-label*="Connect" i], a[aria-label*="${v}"][aria-label*="connect" i]`);
         if (el) {
             const box = await el.boundingBox();
-            console.log(`   📍 Found <a> Connect by name "${variant}" at x=${Math.round(box?.x || 0)}, y=${Math.round(box?.y || 0)}`);
-            connectElement = el;
-            break;
+            if (box) {
+                console.log(`   📍 Found <a> Connect by name "${v}"`);
+                connectElement = el;
+                break;
+            }
         }
     }
 }

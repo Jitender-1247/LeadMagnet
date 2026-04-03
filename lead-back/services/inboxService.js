@@ -109,7 +109,7 @@ async function replyToMessage(encryptedCookie, threadUrl, message) {
 
         await msgBox.click();
         await randomDelay(500, 1000);
-        await page.type('.msg-form__contenteditable', message, { delay: 80 });
+        await page.type('.msg-form__contenteditable', message, { delay: 100 });
         await randomDelay(500, 1000);
 
         const sendBtn = await page.$('button.msg-form__send-button');

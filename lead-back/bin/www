@@ -4,8 +4,7 @@
  * Module dependencies.
  */
 
-const { startSimulationEngine } = require('../services/simulationEngine');
-startSimulationEngine();
+
 
 var app = require('../app');
 var debug = require('debug')('lead-back:server');

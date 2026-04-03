@@ -101,42 +101,52 @@ router.get('/campaigns', authMiddleware, async (req, res) => {
     const uid = req.user.uid;
 
     try {
+        // Step 1: Get all campaigns for the user
         const campaignsSnapshot = await db.collection('campaigns')
             .where('userId', '==', uid)
             .get();
 
-        const stats = [];
-
-        for (const doc of campaignsSnapshot.docs) {
-            const campaign = { id: doc.id, ...doc.data() };
-            const leadsSnapshot = await db.collection('leads')
-                .where('campaignId', '==', campaign.id)
-                .get();
-
-            const leads    = leadsSnapshot.docs.map(d => d.data());
-            const total    = leads.length;
-            const accepted = leads.filter(l => ['accepted', 'replied', 'called'].includes(l.status)).length;
-            const replied  = leads.filter(l => ['replied', 'called'].includes(l.status)).length;
-            const called   = leads.filter(l => l.status === 'called').length;
-
-            stats.push({
-                campaignId:     campaign.id,
-                name:           campaign.name,
-                status:         campaign.status,
-                total,
-                pending:        leads.filter(l => l.status === 'pending').length,
-                requested:      leads.filter(l => l.status === 'requested').length,
-                accepted,
-                replied,
-                called,
-                acceptanceRate: total    > 0 ? Math.round((accepted / total)    * 100) : 0,
-                replyRate:      accepted > 0 ? Math.round((replied  / accepted) * 100) : 0,
-                meetingRate:    replied  > 0 ? Math.round((called   / replied)  * 100) : 0,
-            });
+        if (campaignsSnapshot.empty) {
+            return res.json({ stats: [] });
         }
+
+        // Step 2: Fetch leads for ALL campaigns in parallel
+        const stats = await Promise.all(
+            campaignsSnapshot.docs.map(async (doc) => {
+                const campaign = { id: doc.id, ...doc.data() };
+                
+                const leadsSnapshot = await db.collection('leads')
+                    .where('campaignId', '==', campaign.id)
+                    .get();
+
+                const leads = leadsSnapshot.docs.map(d => d.data());
+                
+                // Calculations
+                const total     = leads.length;
+                const accepted  = leads.filter(l => ['accepted', 'replied', 'called'].includes(l.status)).length;
+                const replied   = leads.filter(l => ['replied', 'called'].includes(l.status)).length;
+                const called    = leads.filter(l => l.status === 'called').length;
+
+                return {
+                    campaignId:     campaign.id,
+                    name:           campaign.name,
+                    status:         campaign.status,
+                    total,
+                    pending:        leads.filter(l => l.status === 'pending').length,
+                    requested:      leads.filter(l => l.status === 'requested').length,
+                    accepted,
+                    replied,
+                    called,
+                    acceptanceRate: total    > 0 ? Math.round((accepted / total)    * 100) : 0,
+                    replyRate:      accepted > 0 ? Math.round((replied  / accepted) * 100) : 0,
+                    meetingRate:    replied  > 0 ? Math.round((called   / replied)  * 100) : 0,
+                };
+            })
+        );
 
         res.json({ stats });
     } catch (err) {
+        console.error('Analytics Error:', err);
         res.status(500).json({ error: err.message });
     }
 });

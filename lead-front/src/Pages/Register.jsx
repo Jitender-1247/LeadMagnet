@@ -184,25 +184,6 @@ export default function Register() {
                 </a>
               </span>
 
-              {/* Divider */}
-              <div className="flex items-center gap-2 my-4">
-                <div className="flex-1 h-px bg-gray-700"></div>
-                <span className="text-gray-400 text-sm">or continue with</span>
-                <div className="flex-1 h-px bg-gray-700"></div>
-              </div>
-
-              {/* Google Signup */}
-              <button
-                type="button"
-                onClick={handleGoogleSignup}
-                className="w-full flex items-center justify-center gap-3 bg-white text-black font-medium py-3 rounded-xl hover:bg-gray-200 transition"
-              >
-                <img
-                  src="https://www.svgrepo.com/show/475656/google-color.svg"
-                  className="w-5 h-5"
-                />
-                Sign up with Google
-              </button> 
 
             </div>
           </form>
