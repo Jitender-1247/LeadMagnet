@@ -4,7 +4,7 @@ import LeadLogo from '../assets/Images/logo.svg'
 import { Globe, Globe2Icon, Inbox, Lock, Mail, Zap, ZapIcon } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify';
 
-export default function Test() {
+export default function Login() {
   const navigate = useNavigate();
   const [email,setEmail] = useState('');
   const [password,setPassword] = useState('');
