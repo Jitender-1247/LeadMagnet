@@ -44,6 +44,59 @@ function randomDelay(min = 500, max = 1500) {
     );
 }
 
+// ── Grab profile image + name from LinkedIn nav after login ──────────────────
+async function fetchLinkedInUserData(page) {
+    try {
+        // Wait for nav to fully load
+        await randomDelay(2000, 3000);
+
+        const data = await page.evaluate(() => {
+            // Profile image — LinkedIn nav avatar selectors
+            const imgSelectors = [
+                'img.global-nav__me-photo',
+                '.global-nav__me img',
+                'img[class*="global-nav__me-photo"]',
+                '.nav-item__profile-member-photo',
+                'button[data-control-name="identity_welcome_message"] img',
+                '.artdeco-entity-lockup__image img',
+            ];
+
+            let profileImage = null;
+            for (const sel of imgSelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.src && !el.src.includes('data:') && el.src.includes('licdn')) {
+                    profileImage = el.src;
+                    break;
+                }
+            }
+
+            // Display name from nav
+            const nameSelectors = [
+                '.global-nav__me-content .t-14',
+                '.global-nav__me-content span[class*="t-"]',
+                '[data-control-name="identity_welcome_message"] span',
+            ];
+
+            let displayName = null;
+            for (const sel of nameSelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.innerText?.trim()) {
+                    displayName = el.innerText.trim();
+                    break;
+                }
+            }
+
+            return { profileImage, displayName };
+        });
+
+        console.log('📸 LinkedIn user data fetched:', data.displayName, data.profileImage ? '(image found)' : '(no image)');
+        return data;
+    } catch (err) {
+        console.warn('⚠️ Could not fetch LinkedIn user data:', err.message);
+        return { profileImage: null, displayName: null };
+    }
+}
+
 // ── Helper: reliable login check using URL instead of DOM element ────────────
 async function isLoggedIn(page) {
     // Wait a moment for any redirect to happen
@@ -116,10 +169,16 @@ async function initiateLinkedInLogin(uid, email, password) {
 
             if (liAt) {
                 const encryptedCookie = encrypt(liAt.value);
+
+                // Fetch profile image + name from nav
+                const { profileImage, displayName } = await fetchLinkedInUserData(page);
+
                 await db.collection('users').doc(uid).update({
-                    linkedinSession: encryptedCookie,
-                    linkedinEmail: email,
-                    linkedinConnectedAt: new Date().toISOString()
+                    linkedinSession:     encryptedCookie,
+                    linkedinEmail:       email,
+                    linkedinConnectedAt: new Date().toISOString(),
+                    ...(profileImage && { linkedinProfileImage: profileImage }),
+                    ...(displayName  && { linkedinDisplayName:  displayName  }),
                 });
                 await browser.close();
                 return { success: true, message: 'LinkedIn connected successfully ✅' };
@@ -253,9 +312,15 @@ async function submitLinkedInOtp(uid, otp) {
         }
 
         const encryptedCookie = encrypt(liAt.value);
+
+        // Fetch profile image + name from nav
+        const { profileImage, displayName } = await fetchLinkedInUserData(page);
+
         await db.collection('users').doc(uid).update({
-            linkedinSession: encryptedCookie,
-            linkedinConnectedAt: new Date().toISOString()
+            linkedinSession:     encryptedCookie,
+            linkedinConnectedAt: new Date().toISOString(),
+            ...(profileImage && { linkedinProfileImage: profileImage }),
+            ...(displayName  && { linkedinDisplayName:  displayName  }),
         });
 
         await browser.close();

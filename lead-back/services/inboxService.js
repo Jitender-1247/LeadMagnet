@@ -1,58 +1,91 @@
-const puppeteer = require('puppeteer-extra');
+const puppeteer     = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const { db } = require('../config/firebase');
-const { decrypt } = require('./linkedinService');
+const { executablePath } = require('puppeteer');
+const { db }        = require('../config/firebase');
+const { decrypt }   = require('./linkedinService');
+const {
+    sleep, clickDelay, readingDelay, humanType
+} = require('./Humandelay');
+const { buildStickyProxyArgs, authenticatePage } = require('./Proxysession');
 
 puppeteer.use(StealthPlugin());
 
-function randomDelay(min, max) {
-    return new Promise(resolve =>
-        setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min)
-    );
-}
-
-async function syncInboxMessages(uid, encryptedCookie) {
-    const liAt = decrypt(encryptedCookie);
+// ── Launch browser with sticky proxy for this user ───────────────────────────
+async function launchBrowser(userId) {
+    const { args, username, password } = buildStickyProxyArgs(userId);
 
     const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        headless: "new",
+        executablePath: executablePath(),
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-blink-features=AutomationControlled',
+            ...args,
+        ],
+        defaultViewport: null,
     });
 
-    try {
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
-        await page.setCookie({
-                    name: 'li_at',
-                    value: liAt,
-                    domain: '.linkedin.com',
-                    path: '/',
-                    httpOnly: true,
-                    secure: true,
-                    sameSite: 'None'
-                });
+    browser._proxyAuth = { username, password };
+    return browser;
+}
 
-        console.log('📥 Opening LinkedIn messaging...');
+async function makePage(browser, liAt) {
+    const page = await browser.newPage();
+
+    if (browser._proxyAuth?.username) {
+        await authenticatePage(page, browser._proxyAuth);
+    }
+
+    await page.setViewport({
+        width:  1280 + Math.floor(Math.random() * 200),
+        height:  800 + Math.floor(Math.random() * 100),
+    });
+
+    let ua = await browser.userAgent();
+    ua = ua.replace(/HeadlessChrome/g, 'Chrome');
+    await page.setUserAgent(ua);
+
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+
+    await page.setCookie({
+        name: 'li_at', value: liAt,
+        domain: '.linkedin.com', path: '/',
+        httpOnly: true, secure: true, sameSite: 'None',
+    });
+
+    return page;
+}
+
+// ── Sync inbox messages ───────────────────────────────────────────────────────
+async function syncInboxMessages(uid, encryptedCookie) {
+    const liAt    = decrypt(encryptedCookie);
+    const browser = await launchBrowser(uid);
+
+    try {
+        const page = await makePage(browser, liAt);
+
+        console.log('📥 Opening LinkedIn messaging…');
         await page.goto('https://www.linkedin.com/messaging/', {
-            waitUntil: 'domcontentloaded',
-            timeout: 60000
+            waitUntil: 'domcontentloaded', timeout: 60000,
         });
-        await randomDelay(3000, 4000);
+
+        // ── Gaussian reading pause (mean 3.5s, std 0.6s) ────────────────────
+        await sleep(readingDelay());
 
         const conversations = await page.evaluate(() => {
             const items = [];
             document.querySelectorAll('.msg-conversation-listitem').forEach(el => {
-                const nameEl = el.querySelector('.msg-conversation-listitem__participant-names');
+                const nameEl    = el.querySelector('.msg-conversation-listitem__participant-names');
                 const previewEl = el.querySelector('.msg-conversation-listitem__message-snippet');
-                const linkEl = el.querySelector('a');
-                const timeEl = el.querySelector('time');
-
+                const linkEl    = el.querySelector('a');
+                const timeEl    = el.querySelector('time');
                 if (nameEl && linkEl) {
                     items.push({
-                        name: nameEl.innerText.trim(),
-                        preview: previewEl ? previewEl.innerText.trim() : '',
-                        threadUrl: 'https://www.linkedin.com' + linkEl.getAttribute('href'),
-                        receivedAt: timeEl ? timeEl.getAttribute('datetime') : new Date().toISOString()
+                        name:        nameEl.innerText.trim(),
+                        preview:     previewEl ? previewEl.innerText.trim() : '',
+                        threadUrl:   'https://www.linkedin.com' + linkEl.getAttribute('href'),
+                        receivedAt:  timeEl ? timeEl.getAttribute('datetime') : new Date().toISOString(),
                     });
                 }
             });
@@ -76,30 +109,19 @@ async function syncInboxMessages(uid, encryptedCookie) {
     }
 }
 
-async function replyToMessage(encryptedCookie, threadUrl, message) {
-    const liAt = decrypt(encryptedCookie);
-
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+// ── Reply to a message thread ─────────────────────────────────────────────────
+async function replyToMessage(encryptedCookie, threadUrl, message, uid) {
+    const liAt    = decrypt(encryptedCookie);
+    const browser = await launchBrowser(uid);
 
     try {
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
-        await page.setCookie({
-                name: 'li_at',
-                value: liAt,
-                domain: '.linkedin.com',
-                path: '/',
-                httpOnly: true,
-                secure: true,
-                sameSite: 'None'
-            });
+        const page = await makePage(browser, liAt);
 
         console.log('💬 Opening thread:', threadUrl);
         await page.goto(threadUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-        await randomDelay(3000, 4000);
+
+        // ── Gaussian reading pause before interacting ────────────────────────
+        await sleep(readingDelay());
 
         const msgBox = await page.$('.msg-form__contenteditable');
         if (!msgBox) {
@@ -108,9 +130,11 @@ async function replyToMessage(encryptedCookie, threadUrl, message) {
         }
 
         await msgBox.click();
-        await randomDelay(500, 1000);
-        await page.type('.msg-form__contenteditable', message, { delay: 100 });
-        await randomDelay(500, 1000);
+        await sleep(clickDelay());
+
+        // ── Human typing with gaussian per-character delays ──────────────────
+        await humanType(msgBox, message);
+        await sleep(clickDelay());
 
         const sendBtn = await page.$('button.msg-form__send-button');
         if (sendBtn) {

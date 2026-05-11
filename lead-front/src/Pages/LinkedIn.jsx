@@ -49,7 +49,7 @@ export default function LinkedIn() {
       }
 
       toast.success("LinkedIn connected successfully!")
-      navigate("/dashboard")
+      navigate("/setup-profile")
 
     } catch (error) {
       toast.error("Something went wrong. Please try again.")

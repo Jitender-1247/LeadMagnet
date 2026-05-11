@@ -19,13 +19,16 @@ router.get('/profile', authMiddleware, async (req, res) => {
         // ✅ Never send password or sensitive session data to frontend
         res.json({
             uid,
-            name:                 data.name,
-            email:                data.email,
-            createdAt:            data.createdAt,
-            isVerified:           data.isVerified,
-            linkedinConnected:    !!data.linkedinSession,
-            linkedinEmail:        data.linkedinEmail || null,
-            linkedinConnectedAt:  data.linkedinConnectedAt || null,
+            name:                  data.name,
+            email:                 data.email,
+            createdAt:             data.createdAt,
+            isVerified:            data.isVerified,
+            linkedinConnected:     !!data.linkedinSession,
+            linkedinEmail:         data.linkedinEmail         || null,
+            linkedinConnectedAt:   data.linkedinConnectedAt   || null,
+            linkedinProfileImage:  data.linkedinProfileImage  || null,
+            linkedinDisplayName:   data.linkedinDisplayName   || null,
+            profileImage:          data.profileImage          || null,
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -100,7 +103,33 @@ router.post('/linkedin-disconnect', authMiddleware, async (req, res) => {
     }
 });
 
-// GET /api/v1/user/stats — profile page stats summary
+// POST /api/v1/user/profile-image
+router.post('/profile-image', authMiddleware, async (req, res) => {
+  const uid = req.user.uid
+  const { profileImage } = req.body
+
+  if (!profileImage) {
+    return res.status(400).json({ error: 'profileImage is required' })
+  }
+
+  // Validate it's a base64 image
+  if (!profileImage.startsWith('data:image/')) {
+    return res.status(400).json({ error: 'Invalid image format' })
+  }
+
+  // Rough size check — base64 string should be under 100KB
+  const sizeKB = Math.round((profileImage.length * 3) / 4 / 1024)
+  if (sizeKB > 100) {
+    return res.status(400).json({ error: `Image too large (${sizeKB}KB). Max 100KB after compression.` })
+  }
+
+  try {
+    await db.collection('users').doc(uid).update({ profileImage })
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
 router.get('/stats', authMiddleware, async (req, res) => {
     const uid = req.user.uid;
     try {

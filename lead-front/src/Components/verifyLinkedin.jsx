@@ -35,7 +35,7 @@ export default function VerifyLinkedin() {
 
       if (res.ok) {
         toast.success('LinkedIn connected successfully!')
-        setTimeout(() => navigate('/dashboard'), 1000)
+        setTimeout(() => navigate('/setup-profile'), 1000)
       } else {
         toast.error(data.message || data.error || 'OTP verification failed')
       }
