@@ -8,7 +8,7 @@ var dotenv = require('dotenv');
 dotenv.config();
 
 var indexRouter = require('./routes/index');
-
+var scheduler = require('./services/scheduler');
 var app = express();
 
 // Middleware
@@ -29,7 +29,7 @@ app.use('/api/v1/user', require('./routes/user'));
 app.use('/', indexRouter);
 
 // ✅ Start scheduler (add this line)
-require('./services/scheduler');
+scheduler.start();
 
 // View engine
 app.set('views', path.join(__dirname, 'views'));
