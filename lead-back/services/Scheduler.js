@@ -173,4 +173,6 @@ cron.schedule('0 0 * * *', async () => {
 
 console.log('[cron] ✅ Scheduler initialized');
 
-module.exports = {};
+module.exports = {
+  init: () => console.log('[cron] Scheduler is active and monitoring...')
+};
