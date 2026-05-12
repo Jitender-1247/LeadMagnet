@@ -1,54 +1,53 @@
 /**
  * browserConfig.js
- * Finds the correct Chrome executable path across all environments:
- * - Local development (Mac, Windows, Linux)
- * - Render.com hosting
- * - Other cloud providers
+ * Finds Chrome automatically across all environments.
  */
 
 const fs   = require('fs');
 const path = require('path');
 
-/**
- * Finds Chrome executable path automatically.
- * Checks known locations in order of priority.
- */
 function findChrome() {
-  const candidates = [
-    // Render.com — puppeteer downloaded chrome
+  // ── 1. Scan Render's cache directory dynamically ──────────────────────────
+  // This handles ANY version Puppeteer installs — no hardcoding needed
+  try {
+    const base = '/opt/render/.cache/puppeteer/chrome';
+    if (fs.existsSync(base)) {
+      const versions = fs.readdirSync(base)
+        .filter(d => d.startsWith('linux-'))
+        .sort()
+        .reverse(); // newest first
+
+      for (const version of versions) {
+        const chromePath = path.join(base, version, 'chrome-linux64', 'chrome');
+        if (fs.existsSync(chromePath)) {
+          console.log(`[browser] ✅ Found Chrome at: ${chromePath}`);
+          return chromePath;
+        }
+      }
+    }
+  } catch (err) {
+    console.log('[browser] Directory scan failed:', err.message);
+  }
+
+  // ── 2. Known Render paths (fallback for specific versions) ────────────────
+  const knownPaths = [
+    '/opt/render/.cache/puppeteer/chrome/linux-146.0.7680.153/chrome-linux64/chrome',
     '/opt/render/.cache/puppeteer/chrome/linux-148.0.7778.97/chrome-linux64/chrome',
     '/opt/render/.cache/puppeteer/chrome/linux-131.0.6778.87/chrome-linux64/chrome',
-    '/opt/render/.cache/puppeteer/chrome/linux-130.0.6723.116/chrome-linux64/chrome',
-
-    // Render generic glob — finds whatever version is installed
-    ...(() => {
-      try {
-        const base = '/opt/render/.cache/puppeteer/chrome';
-        if (fs.existsSync(base)) {
-          return fs.readdirSync(base)
-            .filter(d => d.startsWith('linux-'))
-            .map(d => path.join(base, d, 'chrome-linux64', 'chrome'))
-        }
-      } catch {}
-      return [];
-    })(),
-
-    // Railway / Heroku / generic Linux
+    // Linux system Chrome
     '/usr/bin/google-chrome-stable',
     '/usr/bin/google-chrome',
     '/usr/bin/chromium-browser',
     '/usr/bin/chromium',
-
-    // Mac (local dev)
+    // Mac
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Chromium.app/Contents/MacOS/Chromium',
-
-    // Windows (local dev)
+    // Windows
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
   ];
 
-  for (const p of candidates) {
+  for (const p of knownPaths) {
     try {
       if (fs.existsSync(p)) {
         console.log(`[browser] ✅ Found Chrome at: ${p}`);
@@ -57,18 +56,12 @@ function findChrome() {
     } catch {}
   }
 
-  // Let Puppeteer find it itself as last resort
-  console.log('[browser] ⚠️  No Chrome found at known paths — letting Puppeteer auto-detect');
+  console.log('[browser] ⚠️  No Chrome found — letting Puppeteer auto-detect');
   return undefined;
 }
 
-/**
- * Standard Puppeteer launch args that work on Render and locally.
- * Pass additional args (e.g. proxy) via extraArgs.
- */
 function getLaunchConfig(extraArgs = []) {
   const executablePath = findChrome();
-
   return {
     headless: 'new',
     ...(executablePath && { executablePath }),
