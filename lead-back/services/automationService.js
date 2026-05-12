@@ -8,7 +8,6 @@
 
 const puppeteer     = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const { executablePath } = require('puppeteer');
 const { db }        = require('../config/firebase');
 const { decrypt }   = require('./linkedinService');
 const {
@@ -99,8 +98,8 @@ function getNextSafeWindow() {
 }
 
 
-//  * New accounts start at 5/day and ramp to 20 over WARMUP_DAYS.
-//  */
+ * New accounts start at 5/day and ramp to 20 over WARMUP_DAYS.
+ */
 async function getDailyLimit(userId) {
   const userDoc = await db.collection('users').doc(userId).get();
   const user    = userDoc.data();
@@ -145,10 +144,13 @@ async function launchBrowser(userId) {
 
   const browser = await puppeteer.launch({
     headless: 'new',
-    executablePath: executablePath(),
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process',
+      '--no-zygote',
       '--disable-blink-features=AutomationControlled',
       '--disable-features=IsolateOrigins,site-per-process',
       '--disable-web-security',

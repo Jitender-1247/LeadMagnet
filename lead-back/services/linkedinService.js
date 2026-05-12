@@ -1,5 +1,4 @@
 require('dotenv').config();
-const { executablePath } = require('puppeteer'); 
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const crypto = require('crypto');
@@ -118,6 +117,10 @@ async function initiateLinkedInLogin(uid, email, password) {
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--single-process',
+            '--no-zygote',
             '--disable-blink-features=AutomationControlled',
         ],
         defaultViewport: { width: 1366, height: 768 }
@@ -438,10 +441,13 @@ async function scrapeLeads(uid, encryptedCookie, searchUrl, campaignId, maxLeads
 
     const browser = await puppeteer.launch({
         headless: true,
-        executablePath: executablePath(),
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--single-process',
+            '--no-zygote',
             '--disable-blink-features=AutomationControlled'
         ],
         defaultViewport: { width: 1366, height: 768 }

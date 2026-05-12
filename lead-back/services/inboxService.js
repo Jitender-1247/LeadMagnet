@@ -1,6 +1,5 @@
 const puppeteer     = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const { executablePath } = require('puppeteer');
 const { db }        = require('../config/firebase');
 const { decrypt }   = require('./linkedinService');
 const {
@@ -15,11 +14,14 @@ async function launchBrowser(userId) {
     const { args, username, password } = buildStickyProxyArgs(userId);
 
     const browser = await puppeteer.launch({
-        headless: "new",
-        executablePath: executablePath(),
+        headless: 'new',
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--single-process',
+            '--no-zygote',
             '--disable-blink-features=AutomationControlled',
             ...args,
         ],
