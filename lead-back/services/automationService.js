@@ -8,6 +8,7 @@
 
 const puppeteer     = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const { getLaunchConfig } = require('./browserConfig');
 const { db }        = require('../config/firebase');
 const { decrypt }   = require('./linkedinService');
 const {
@@ -142,22 +143,7 @@ function applyDailyVariance(limit) {
 async function launchBrowser(userId) {
   const { args, username, password } = buildStickyProxyArgs(userId);
 
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--single-process',
-      '--no-zygote',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--disable-web-security',
-      ...args,
-    ],
-    defaultViewport: null,
-  });
+  const browser = await puppeteer.launch(getLaunchConfig(args));
 
   browser._proxyAuth = { username, password };
   return browser;

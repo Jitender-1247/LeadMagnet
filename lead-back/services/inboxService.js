@@ -2,6 +2,7 @@ const puppeteer     = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const { db }        = require('../config/firebase');
 const { decrypt }   = require('./linkedinService');
+const { getLaunchConfig } = require('./browserConfig');
 const {
     sleep, clickDelay, readingDelay, humanType
 } = require('./Humandelay');
@@ -9,25 +10,9 @@ const { buildStickyProxyArgs, authenticatePage } = require('./Proxysession');
 
 puppeteer.use(StealthPlugin());
 
-// ── Launch browser with sticky proxy for this user ───────────────────────────
 async function launchBrowser(userId) {
     const { args, username, password } = buildStickyProxyArgs(userId);
-
-    const browser = await puppeteer.launch({
-        headless: 'new',
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--single-process',
-            '--no-zygote',
-            '--disable-blink-features=AutomationControlled',
-            ...args,
-        ],
-        defaultViewport: null,
-    });
-
+    const browser = await puppeteer.launch(getLaunchConfig(args));
     browser._proxyAuth = { username, password };
     return browser;
 }

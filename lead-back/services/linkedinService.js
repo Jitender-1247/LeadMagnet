@@ -3,6 +3,7 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const crypto = require('crypto');
 const { db } = require('../config/firebase');
+const { getLaunchConfig } = require('./browserConfig');
 
 puppeteer.use(StealthPlugin());
 
@@ -112,19 +113,7 @@ async function isLoggedIn(page) {
 
 // ── STEP 1 — Login with email + password, trigger OTP ──────────────────────
 async function initiateLinkedInLogin(uid, email, password) {
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--single-process',
-            '--no-zygote',
-            '--disable-blink-features=AutomationControlled',
-        ],
-        defaultViewport: { width: 1366, height: 768 }
-    });
+    const browser = await puppeteer.launch(getLaunchConfig());
 
     try {
         const page = await browser.newPage();
@@ -439,19 +428,7 @@ async function extractProfileData(page) {
 async function scrapeLeads(uid, encryptedCookie, searchUrl, campaignId, maxLeads = 25) {
     const liAt = decrypt(encryptedCookie);
 
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--single-process',
-            '--no-zygote',
-            '--disable-blink-features=AutomationControlled'
-        ],
-        defaultViewport: { width: 1366, height: 768 }
-    });
+    const browser = await puppeteer.launch(getLaunchConfig());
 
     try {
         const page = await browser.newPage();
