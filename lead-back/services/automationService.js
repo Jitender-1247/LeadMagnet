@@ -98,8 +98,8 @@ function getNextSafeWindow() {
 }
 
 
- * New accounts start at 5/day and ramp to 20 over WARMUP_DAYS.
- */
+//  * New accounts start at 5/day and ramp to 20 over WARMUP_DAYS.
+//  */
 async function getDailyLimit(userId) {
   const userDoc = await db.collection('users').doc(userId).get();
   const user    = userDoc.data();
