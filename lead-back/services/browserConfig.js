@@ -1,56 +1,90 @@
 /**
  * browserConfig.js
- * Finds Chrome automatically across all environments.
+ * Finds Chrome automatically across all environments:
+ * - Railway (primary)
+ * - Render.com
+ * - Local Mac / Windows / Linux
  */
 
 const fs   = require('fs');
 const path = require('path');
 
 function findChrome() {
-  // ── 1. Scan Render's cache directory dynamically ──────────────────────────
-  // This handles ANY version Puppeteer installs — no hardcoding needed
+
+  // ── 1. Railway — Nixpacks installs system Chromium ───────────────────────
+  // Railway uses Nix, so Chromium is at the system level
+  const railwayPaths = [
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/run/current-system/sw/bin/chromium',
+    '/nix/var/nix/profiles/default/bin/chromium',
+  ];
+
+  for (const p of railwayPaths) {
+    if (fs.existsSync(p)) {
+      console.log(`[browser] ✅ Railway Chrome found at: ${p}`);
+      return p;
+    }
+  }
+
+  // ── 2. Puppeteer downloaded Chrome (Railway fallback) ────────────────────
+  try {
+    const home = process.env.HOME || '/root';
+    const base = path.join(home, '.cache', 'puppeteer', 'chrome');
+    if (fs.existsSync(base)) {
+      const versions = fs.readdirSync(base)
+        .filter(d => d.startsWith('linux-'))
+        .sort().reverse();
+      for (const v of versions) {
+        const p = path.join(base, v, 'chrome-linux64', 'chrome');
+        if (fs.existsSync(p)) {
+          console.log(`[browser] ✅ Puppeteer Chrome found at: ${p}`);
+          return p;
+        }
+      }
+    }
+  } catch {}
+
+  // ── 3. Render.com — scan cache directory ─────────────────────────────────
   try {
     const base = '/opt/render/.cache/puppeteer/chrome';
     if (fs.existsSync(base)) {
       const versions = fs.readdirSync(base)
         .filter(d => d.startsWith('linux-'))
-        .sort()
-        .reverse(); // newest first
-
-      for (const version of versions) {
-        const chromePath = path.join(base, version, 'chrome-linux64', 'chrome');
-        if (fs.existsSync(chromePath)) {
-          console.log(`[browser] ✅ Found Chrome at: ${chromePath}`);
-          return chromePath;
+        .sort().reverse();
+      for (const v of versions) {
+        const p = path.join(base, v, 'chrome-linux64', 'chrome');
+        if (fs.existsSync(p)) {
+          console.log(`[browser] ✅ Render Chrome found at: ${p}`);
+          return p;
         }
       }
     }
-  } catch (err) {
-    console.log('[browser] Directory scan failed:', err.message);
-  }
+  } catch {}
 
-  // ── 2. Known Render paths (fallback for specific versions) ────────────────
-  const knownPaths = [
-    '/opt/render/.cache/puppeteer/chrome/linux-146.0.7680.153/chrome-linux64/chrome',
-    '/opt/render/.cache/puppeteer/chrome/linux-148.0.7778.97/chrome-linux64/chrome',
-    '/opt/render/.cache/puppeteer/chrome/linux-131.0.6778.87/chrome-linux64/chrome',
-    // Linux system Chrome
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium',
-    // Mac
+  // ── 4. Mac local dev ──────────────────────────────────────────────────────
+  const macPaths = [
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Chromium.app/Contents/MacOS/Chromium',
-    // Windows
+  ];
+  for (const p of macPaths) {
+    if (fs.existsSync(p)) {
+      console.log(`[browser] ✅ Mac Chrome found at: ${p}`);
+      return p;
+    }
+  }
+
+  // ── 5. Windows local dev ──────────────────────────────────────────────────
+  const winPaths = [
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
   ];
-
-  for (const p of knownPaths) {
+  for (const p of winPaths) {
     try {
       if (fs.existsSync(p)) {
-        console.log(`[browser] ✅ Found Chrome at: ${p}`);
+        console.log(`[browser] ✅ Windows Chrome found at: ${p}`);
         return p;
       }
     } catch {}
@@ -62,6 +96,7 @@ function findChrome() {
 
 function getLaunchConfig(extraArgs = []) {
   const executablePath = findChrome();
+
   return {
     headless: 'new',
     ...(executablePath && { executablePath }),
