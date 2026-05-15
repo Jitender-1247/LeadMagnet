@@ -37,7 +37,7 @@ export default function Settings() {
         })
         const data = await res.json()
         setProfile({ name: data.name || '', email: data.email || '' })
-        setLinkedinConnected(!!data.linkedinSession)
+        setLinkedinConnected(!!data.linkedinConnected)
       } catch {}
     }
     fetchProfile()

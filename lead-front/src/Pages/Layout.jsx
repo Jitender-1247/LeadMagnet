@@ -10,7 +10,6 @@ const API = import.meta.env.VITE_API_DB_URL
 const NAV_ITEMS = [
   { icon: BarChart2,     label: 'Dashboard',  path: '/dashboard'  },
   { icon: Zap,           label: 'Campaigns',  path: '/campaigns'  },
-  { icon: Users,         label: 'Leads',      path: '/leads'      },
   { icon: MessageSquare, label: 'Inbox',      path: '/inbox'      },
   { icon: TrendingUp,    label: 'Analytics',  path: '/analytics'  },
   { icon: Settings,      label: 'Settings',   path: '/settings'   },

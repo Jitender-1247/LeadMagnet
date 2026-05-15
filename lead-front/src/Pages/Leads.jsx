@@ -316,16 +316,14 @@ export default function Leads() {
   const [loading, setLoading]             = useState(true)
   const [search, setSearch]               = useState('')
   const [filter, setFilter]               = useState('all')
-  const [view, setView]                   = useState('table') // 'table' | 'timeline'
-  const [importing, setImporting]         = useState(false)
+  const [view, setView]                   = useState('table')
   const [searchUrl, setSearchUrl]         = useState('')
   const [maxLeads, setMaxLeads]           = useState(25)
-  const [showImport, setShowImport]       = useState(false)
-  const [campaignRunning, setCampaignRunning]   = useState(false)
-  const [campaignStarted, setCampaignStarted]   = useState(null) // null | 'running' | 'queued'
-  const [queuedLabel, setQueuedLabel]           = useState('')
-  const [updatingStatus, setUpdatingStatus]   = useState({})
-  const [openDropdown, setOpenDropdown]       = useState(null)
+  const [showLaunch, setShowLaunch]       = useState(false)
+  const [launchState, setLaunchState]     = useState(null) // null | 'launching' | 'scraping' | 'running' | 'queued' | 'done'
+  const [launchMsg, setLaunchMsg]         = useState('')
+  const [updatingStatus, setUpdatingStatus] = useState({})
+  const [openDropdown, setOpenDropdown]   = useState(null)
   const token = localStorage.getItem('token')
 
   useEffect(() => {
@@ -363,78 +361,58 @@ export default function Leads() {
     } catch {}
   }
 
-  const handleImport = async () => {
+  const handleLaunch = async () => {
     if (!searchUrl.trim() || !searchUrl.includes('linkedin.com')) {
-      toast.error('Enter a valid LinkedIn search URL')
+      toast.error('Please paste a valid LinkedIn search URL')
       return
     }
-    setImporting(true)
+
+    setLaunchState('launching')
+    setLaunchMsg('Starting up...')
+
     try {
-      const res  = await fetch(`${API}/campaigns/${campaignId}/import-leads`, {
+      const res  = await fetch(`${API}/campaigns/${campaignId}/launch`, {
         method:  'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body:    JSON.stringify({ searchUrl, maxLeads })
       })
       const data = await res.json()
-      if (res.ok) {
-        toast.success(`Imported ${data.leadsImported} leads!`)
-        setShowImport(false)
-        setSearchUrl('')
-        fetchLeads()
-      } else {
-        toast.error(data.error || 'Import failed')
-      }
-    } catch {
-      toast.error('Something went wrong')
-    } finally {
-      setImporting(false)
-    }
-  }
-
-  const handleStartCampaign = async () => {
-    setCampaignRunning(true)
-    try {
-      const res  = await fetch(`${API}/campaigns/${campaignId}/start`, {
-        method:  'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      const data = await res.json()
 
       if (!res.ok) {
-        toast.error(data.error || 'Failed to start campaign')
+        toast.error(data.error || 'Launch failed')
+        setLaunchState(null)
         return
       }
 
-      if (data.status === 'queued') {
-        toast.info(`⏰ Queued — will run ${data.scheduledLabel}`, { autoClose: 6000 })
-        setCampaignStarted('queued')
-        setQueuedLabel(data.scheduledLabel)
-        return
-      }
-      if (data.status === 'already_queued') {
-        toast.info(`Already scheduled to run ${data.scheduledLabel}`, { autoClose: 5000 })
-        setCampaignStarted('queued')
-        setQueuedLabel(data.scheduledLabel)
-        return
-      }
-      if (data.status === 'running') {
-        toast.success('🚀 Campaign started! Sending connections...')
-        setCampaignStarted('running')
-        // Refresh leads every 10s while running to show status updates
-        const interval = setInterval(async () => {
-          await fetchLeads()
-        }, 10000)
-        // Stop refreshing after 5 minutes
-        setTimeout(() => clearInterval(interval), 5 * 60 * 1000)
-        return
-      }
+      // Backend acknowledged — now show progress states
+      setLaunchState('scraping')
+      setLaunchMsg(`Scraping ${maxLeads} LinkedIn profiles...`)
 
-      toast.success(data.message || 'Campaign started!')
-      setCampaignStarted('running')
+      toast.success('🚀 Campaign launched! Scraping profiles then sending connections automatically.')
+
+      // Poll leads every 15s to show progress
+      const interval = setInterval(async () => {
+        await fetchLeads()
+      }, 15000)
+
+      // After estimated scrape time, update message to sending
+      const scrapeMins = Math.ceil((maxLeads * 20) / 60)
+      setTimeout(() => {
+        setLaunchState('running')
+        setLaunchMsg('Sending connection requests...')
+      }, scrapeMins * 60 * 1000)
+
+      // Stop polling after 30 minutes
+      setTimeout(() => {
+        clearInterval(interval)
+        setLaunchState('done')
+        setLaunchMsg('Campaign is running — follow-ups handled automatically')
+        fetchLeads()
+      }, 30 * 60 * 1000)
+
     } catch {
       toast.error('Something went wrong')
-    } finally {
-      setCampaignRunning(false)
+      setLaunchState(null)
     }
   }
 
@@ -504,10 +482,8 @@ export default function Leads() {
     return acc
   }, {})
 
-  const pendingCount   = statusCounts['pending']   || 0
   const requestedCount = statusCounts['requested'] || 0
   const sequence       = campaign?.sequence || []
-  const estimatedMins  = Math.ceil((maxLeads * 20) / 60)
 
   return (
     <div style={{ minHeight: '100vh', background: '#0d1117', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif' }}>
@@ -549,61 +525,25 @@ export default function Leads() {
               </button>
             )}
 
-            {pendingCount > 0 && (
-              <button
-                onClick={campaignStarted ? undefined : handleStartCampaign}
-                disabled={campaignRunning || !!campaignStarted}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  background: campaignRunning          ? '#065f46' :
-                              campaignStarted === 'running' ? '#064e3b' :
-                              campaignStarted === 'queued'  ? '#78350f' :
-                              '#10b981',
-                  color: '#fff', border: 'none',
-                  padding: '10px 16px', borderRadius: 10,
-                  fontSize: 13, fontWeight: 600,
-                  cursor: (campaignRunning || campaignStarted) ? 'not-allowed' : 'pointer',
-                  opacity: campaignStarted ? 0.85 : 1,
-                  transition: 'all 0.2s'
-                }}
-              >
-                {campaignRunning ? (
-                  <>
-                    <svg style={{ animation: 'spin 1s linear infinite', width: 14, height: 14 }} viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25"/>
-                      <path fill="currentColor" d="M4 12a8 8 0 018-8v8z" opacity="0.75"/>
-                    </svg>
-                    Starting...
-                  </>
-                ) : campaignStarted === 'running' ? (
-                  <>
-                    <svg style={{ animation: 'spin 1s linear infinite', width: 14, height: 14 }} viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25"/>
-                      <path fill="currentColor" d="M4 12a8 8 0 018-8v8z" opacity="0.75"/>
-                    </svg>
-                    Sending Connections...
-                  </>
-                ) : campaignStarted === 'queued' ? (
-                  <>
-                    <Clock size={14} />
-                    Queued · {queuedLabel}
-                  </>
-                ) : (
-                  <>
-                    <Play size={14} />
-                    Run Now ({pendingCount})
-                  </>
-                )}
-              </button>
-            )}
-
-            <button onClick={() => setShowImport(!showImport)} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              background: '#10b981', color: '#fff', border: 'none',
-              padding: '10px 18px', borderRadius: 10,
-              fontSize: 13, fontWeight: 600, cursor: 'pointer'
-            }}>
-              <Download size={15} /> Import Leads
+            {/* Single Launch button */}
+            <button
+              onClick={() => setShowLaunch(s => !s)}
+              disabled={!!launchState && launchState !== 'done'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: launchState && launchState !== 'done' ? '#065f46' : '#10b981',
+                color: '#fff', border: 'none',
+                padding: '10px 20px', borderRadius: 10,
+                fontSize: 13, fontWeight: 600,
+                cursor: launchState && launchState !== 'done' ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <Zap size={15} />
+              {launchState === 'scraping' ? 'Scraping profiles...' :
+               launchState === 'running'  ? 'Sending connections...' :
+               launchState === 'launching'? 'Launching...' :
+               launchState === 'done'     ? 'Launch Again' :
+               'Launch Campaign'}
             </button>
           </div>
         </div>
@@ -615,54 +555,111 @@ export default function Leads() {
           onCancel={handleCancelQueue}
         />
 
-        {/* Import panel */}
-        {showImport && (
+        {/* Launch panel */}
+        {showLaunch && (
           <div style={{
             background: '#111827', border: '1px solid #10b98133',
-            borderRadius: 14, padding: 24, marginBottom: 24
+            borderRadius: 16, padding: 24, marginBottom: 24
           }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 4 }}>
-              Import from LinkedIn Search
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
+              🚀 Launch Campaign
             </div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>
-              Go to linkedin.com/search/results/people, apply your filters, then paste the URL below.
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
+              Paste a LinkedIn search URL below. We'll scrape the profiles and automatically
+              send connection requests — no extra steps needed.
             </div>
+
+            {/* Status indicator when running */}
+            {launchState && launchState !== 'done' && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                background: '#10b98110', border: '1px solid #10b98130',
+                borderRadius: 10, padding: '12px 16px', marginBottom: 16
+              }}>
+                <svg style={{ animation: 'spin 1s linear infinite', width: 16, height: 16, flexShrink: 0, color: '#10b981' }} viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25"/>
+                  <path fill="currentColor" d="M4 12a8 8 0 018-8v8z" opacity="0.75"/>
+                </svg>
+                <div>
+                  <div style={{ fontSize: 13, color: '#10b981', fontWeight: 600 }}>{launchMsg}</div>
+                  <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>
+                    This runs in the background — you can leave this page
+                  </div>
+                </div>
+              </div>
+            )}
+
             <input
               value={searchUrl}
               onChange={e => setSearchUrl(e.target.value)}
               placeholder="https://www.linkedin.com/search/results/people/?keywords=..."
+              disabled={!!launchState && launchState !== 'done'}
               style={{
                 width: '100%', padding: '11px 16px', marginBottom: 12,
                 background: '#0d1117', border: '1px solid #1e2535',
                 borderRadius: 10, color: '#e2e8f0', fontSize: 13,
-                outline: 'none', boxSizing: 'border-box'
+                outline: 'none', boxSizing: 'border-box',
+                opacity: launchState && launchState !== 'done' ? 0.5 : 1
               }}
             />
 
-            {/* Profile count selector */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {/* Profile count */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               {[10, 25, 50, 100].map(n => (
-                <button key={n} onClick={() => setMaxLeads(n)} style={{
-                  padding: '7px 16px', borderRadius: 8,
-                  background: maxLeads === n ? '#10b981' : '#0d1117',
-                  border: `1px solid ${maxLeads === n ? '#10b981' : '#1e2535'}`,
-                  color: maxLeads === n ? '#fff' : '#6b7280',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer'
-                }}>{n} profiles</button>
+                <button key={n} onClick={() => setMaxLeads(n)}
+                  disabled={!!launchState && launchState !== 'done'}
+                  style={{
+                    padding: '7px 16px', borderRadius: 8,
+                    background: maxLeads === n ? '#10b981' : '#0d1117',
+                    border: `1px solid ${maxLeads === n ? '#10b981' : '#1e2535'}`,
+                    color: maxLeads === n ? '#fff' : '#6b7280',
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer'
+                  }}>{n} profiles</button>
               ))}
               <span style={{ fontSize: 11, color: '#4b5563', alignSelf: 'center', marginLeft: 4 }}>
-                ~{estimatedMins} min
+                ~{Math.ceil((maxLeads * 20) / 60)} min scrape
               </span>
             </div>
 
-            <button onClick={handleImport} disabled={importing} style={{
-              background: importing ? '#065f46' : '#10b981',
-              color: '#fff', border: 'none',
-              padding: '10px 24px', borderRadius: 10,
-              fontSize: 13, fontWeight: 600,
-              cursor: importing ? 'not-allowed' : 'pointer'
+            {/* What happens info */}
+            <div style={{
+              background: '#0d1117', borderRadius: 10, padding: '12px 16px',
+              marginBottom: 16, display: 'flex', gap: 20, flexWrap: 'wrap'
             }}>
-              {importing ? 'Importing wait for a moment...' : `Import ${maxLeads} Leads`}
+              {[
+                { step: '1', label: 'Scrape profiles', desc: `${maxLeads} leads from your URL` },
+                { step: '2', label: 'Send connections', desc: 'During safe hours (9am–6pm)' },
+                { step: '3', label: 'Auto follow-ups', desc: 'Based on your sequence' },
+              ].map(({ step, label, desc }) => (
+                <div key={step} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1, minWidth: 140 }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                    background: '#10b98122', border: '1px solid #10b98144',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 10, fontWeight: 700, color: '#10b981'
+                  }}>{step}</div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0' }}>{label}</div>
+                    <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={handleLaunch}
+              disabled={!!launchState && launchState !== 'done'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: launchState && launchState !== 'done' ? '#065f46' : '#10b981',
+                color: '#fff', border: 'none',
+                padding: '12px 28px', borderRadius: 10,
+                fontSize: 14, fontWeight: 700,
+                cursor: launchState && launchState !== 'done' ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <Zap size={16} />
+              {launchState && launchState !== 'done' ? launchMsg : 'Launch Campaign →'}
             </button>
           </div>
         )}

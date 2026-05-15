@@ -193,11 +193,30 @@ export default function Profile() {
           ...cardStyle,
           display: 'flex', alignItems: 'center', gap: 24
         }}>
+          {/* Avatar — shows uploaded photo, LinkedIn photo, or initial */}
+          {(profile?.profileImage || profile?.linkedinProfileImage) ? (
+            <img
+              src={profile.profileImage || profile.linkedinProfileImage}
+              alt={profile?.name || 'avatar'}
+              style={{
+                width: 72, height: 72, borderRadius: '50%',
+                objectFit: 'cover', flexShrink: 0,
+                border: '3px solid #10b98133',
+                boxShadow: '0 0 20px #10b98122'
+              }}
+              onError={e => {
+                e.target.style.display = 'none'
+                e.target.nextSibling.style.display = 'flex'
+              }}
+            />
+          ) : null}
           <div style={{
             width: 72, height: 72, borderRadius: '50%',
             background: 'linear-gradient(135deg, #10b981, #6366f1)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 28, fontWeight: 700, color: '#fff', flexShrink: 0
+            display: (profile?.profileImage || profile?.linkedinProfileImage) ? 'none' : 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: 28, fontWeight: 700, color: '#fff', flexShrink: 0,
+            boxShadow: '0 0 20px #10b98122'
           }}>
             {profile?.name?.charAt(0)?.toUpperCase() || '?'}
           </div>
