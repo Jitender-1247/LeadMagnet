@@ -37,19 +37,28 @@ export default function LinkedIn() {
       console.log("LinkedIn connect response:", data);
 
       if (res.status === 202 && data.requiresOtp) {
-        // LinkedIn requires OTP verification
         toast.info("OTP sent to your LinkedIn email")
-        navigate("/verify-linkedin") // navigate to OTP page
+        navigate("/verify-linkedin")
         return
       }
 
       if (!res.ok) {
-        toast.error("Failed to connect LinkedIn ! check credentials and try again.")
+        toast.error("Failed to connect LinkedIn! Check credentials and try again.")
         return
       }
 
+      // Check if user already has a profile image — skip setup if so
+      const profileRes = await fetch(`${import.meta.env.VITE_API_DB_URL}/user/profile`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+      })
+      const profileData = await profileRes.json()
+
       toast.success("LinkedIn connected successfully!")
-      navigate("/setup-profile")
+      if (profileData.profileImage || profileData.linkedinProfileImage) {
+        navigate("/dashboard")
+      } else {
+        navigate("/setup-profile")
+      }
 
     } catch (error) {
       toast.error("Something went wrong. Please try again.")
@@ -122,6 +131,14 @@ export default function LinkedIn() {
                 : <Linkedin className="w-5 h-5" />
               }
               {loading ? "Connecting..." : "Connect LinkedIn"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
+              className="text-gray-400 hover:text-white text-sm text-center transition mt-1"
+            >
+              Skip for now — connect later from Settings
             </button>
 
           </form>

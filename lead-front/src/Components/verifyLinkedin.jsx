@@ -35,7 +35,23 @@ export default function VerifyLinkedin() {
 
       if (res.ok) {
         toast.success('LinkedIn connected successfully!')
-        setTimeout(() => navigate('/setup-profile'), 1000)
+
+        // Check if user already has a profile image — skip setup if so
+        try {
+          const profileRes = await fetch(`${import.meta.env.VITE_API_DB_URL}/user/profile`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+          const profileData = await profileRes.json()
+          setTimeout(() => {
+            if (profileData.profileImage || profileData.linkedinProfileImage) {
+              navigate('/dashboard')
+            } else {
+              navigate('/setup-profile')
+            }
+          }, 1000)
+        } catch {
+          setTimeout(() => navigate('/setup-profile'), 1000)
+        }
       } else {
         toast.error(data.message || data.error || 'OTP verification failed')
       }

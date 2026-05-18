@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
 import { User, Shield, Linkedin, Bell, Save, Link2Off } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
 import { toast, ToastContainer } from 'react-toastify'
 
 const API = import.meta.env.VITE_API_DB_URL

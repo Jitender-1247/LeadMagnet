@@ -358,6 +358,30 @@ export default function Leads() {
       })
       const data = await res.json()
       setCampaign(data)
+
+      // Restore launch state from Firestore
+      const ls = data.launchStatus
+      if (ls === 'scraping') {
+        setLaunchState('scraping')
+        setLaunchMsg(`Scraping LinkedIn profiles... (${data.leadsScraped || 0} found so far)`)
+        setShowLaunch(true)
+      } else if (ls === 'running') {
+        setLaunchState('running')
+        setLaunchMsg(`Sending connection requests to ${data.leadsScraped || 0} leads...`)
+        setShowLaunch(true)
+      } else if (ls === 'queued') {
+        setLaunchState('queued')
+        setLaunchMsg(`Queued — will run ${data.launchScheduled || 'during safe hours'}`)
+        setShowLaunch(true)
+      } else if (ls === 'error') {
+        setLaunchState('error')
+        setLaunchMsg(data.launchError || 'An error occurred')
+        setShowLaunch(true)
+      } else if (ls === 'done') {
+        setLaunchState('done')
+        setLaunchMsg(`Done — ${data.leadsScraped || 0} leads scraped, connections sent automatically`)
+        setShowLaunch(true)
+      }
     } catch {}
   }
 
@@ -371,38 +395,48 @@ export default function Leads() {
     setLaunchMsg('Starting up...')
 
     try {
-      const res  = await fetch(`${API}/campaigns/${campaignId}/launch`, {
+      const res = await fetch(`${API}/campaigns/${campaignId}/launch`, {
         method:  'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body:    JSON.stringify({ searchUrl, maxLeads })
       })
-      const data = await res.json()
 
-      if (!res.ok) {
-        toast.error(data.error || 'Launch failed')
+      // Safely parse — response might not be JSON (rate limit, HTML error etc)
+      let data = {}
+      try {
+        data = await res.json()
+      } catch {
+        // If status is 429 — rate limited
+        if (res.status === 429) {
+          toast.error('Too many requests. Please wait 10 minutes and try again.')
+          setLaunchState(null)
+          return
+        }
+        toast.error(`Server error (${res.status}) — check your connection`)
         setLaunchState(null)
         return
       }
 
-      // Backend acknowledged — now show progress states
+      if (!res.ok) {
+        toast.error(data.error || `Error ${res.status}: Launch failed`)
+        setLaunchState(null)
+        return
+      }
+
       setLaunchState('scraping')
       setLaunchMsg(`Scraping ${maxLeads} LinkedIn profiles...`)
-
       toast.success('🚀 Campaign launched! Scraping profiles then sending connections automatically.')
 
-      // Poll leads every 15s to show progress
       const interval = setInterval(async () => {
         await fetchLeads()
       }, 15000)
 
-      // After estimated scrape time, update message to sending
       const scrapeMins = Math.ceil((maxLeads * 20) / 60)
       setTimeout(() => {
         setLaunchState('running')
         setLaunchMsg('Sending connection requests...')
       }, scrapeMins * 60 * 1000)
 
-      // Stop polling after 30 minutes
       setTimeout(() => {
         clearInterval(interval)
         setLaunchState('done')
@@ -410,8 +444,8 @@ export default function Leads() {
         fetchLeads()
       }, 30 * 60 * 1000)
 
-    } catch {
-      toast.error('Something went wrong')
+    } catch (err) {
+      toast.error(err.message || 'Network error — check your connection')
       setLaunchState(null)
     }
   }
@@ -423,8 +457,8 @@ export default function Leads() {
         headers: { Authorization: `Bearer ${token}` }
       })
       toast.success('Scheduled run cancelled')
-    } catch {
-      toast.error('Failed to cancel')
+    } catch (err) {
+      toast.error(err.message || 'Failed to cancel')
     }
   }
 
@@ -441,8 +475,8 @@ export default function Leads() {
       } else {
         toast.error(data.error || 'Check failed')
       }
-    } catch {
-      toast.error('Something went wrong')
+    } catch (err) {
+      toast.error(err.message || 'Network error')
     }
   }
 
@@ -462,8 +496,8 @@ export default function Leads() {
       } else {
         toast.error(data.error || 'Update failed')
       }
-    } catch {
-      toast.error('Something went wrong')
+    } catch (err) {
+      toast.error(err.message || 'Network error')
     } finally {
       setUpdatingStatus(prev => ({ ...prev, [leadId]: false }))
     }
@@ -548,12 +582,8 @@ export default function Leads() {
           </div>
         </div>
 
-        {/* Queue status banner */}
-        <QueueBanner
-          campaignId={campaignId}
-          token={token}
-          onCancel={handleCancelQueue}
-        />
+        {/* Queue status banner — disabled until Firestore index is built */}
+        {/* <QueueBanner campaignId={campaignId} token={token} onCancel={handleCancelQueue} /> */}
 
         {/* Launch panel */}
         {showLaunch && (
@@ -570,7 +600,7 @@ export default function Leads() {
             </div>
 
             {/* Status indicator when running */}
-            {launchState && launchState !== 'done' && (
+            {launchState && launchState !== 'done' && launchState !== 'error' && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 background: '#10b98110', border: '1px solid #10b98130',
@@ -583,8 +613,49 @@ export default function Leads() {
                 <div>
                   <div style={{ fontSize: 13, color: '#10b981', fontWeight: 600 }}>{launchMsg}</div>
                   <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>
-                    This runs in the background — you can leave this page
+                    Running in background — you can leave this page safely
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Done state */}
+            {launchState === 'done' && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                background: '#10b98110', border: '1px solid #10b98130',
+                borderRadius: 10, padding: '12px 16px', marginBottom: 16
+              }}>
+                <span style={{ fontSize: 18 }}>✅</span>
+                <div>
+                  <div style={{ fontSize: 13, color: '#10b981', fontWeight: 600 }}>Campaign launched successfully</div>
+                  <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>{launchMsg}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Error state */}
+            {launchState === 'error' && (
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                background: '#ef444410', border: '1px solid #ef444430',
+                borderRadius: 10, padding: '12px 16px', marginBottom: 16
+              }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>❌</span>
+                <div>
+                  <div style={{ fontSize: 13, color: '#ef4444', fontWeight: 600 }}>Launch failed</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{launchMsg}</div>
+                  <button
+                    onClick={() => { setLaunchState(null); setLaunchMsg('') }}
+                    style={{
+                      marginTop: 8, background: 'none',
+                      border: '1px solid #ef444433', color: '#ef4444',
+                      borderRadius: 6, padding: '4px 12px',
+                      fontSize: 11, cursor: 'pointer'
+                    }}
+                  >
+                    Try again
+                  </button>
                 </div>
               </div>
             )}
@@ -646,20 +717,29 @@ export default function Leads() {
               ))}
             </div>
 
+            {/* Launch Campaign button */}
             <button
               onClick={handleLaunch}
-              disabled={!!launchState && launchState !== 'done'}
+              disabled={!!launchState && launchState !== 'done' && launchState !== 'error'}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
-                background: launchState && launchState !== 'done' ? '#065f46' : '#10b981',
+                background: launchState === 'error' ? '#ef4444' :
+                            launchState && launchState !== 'done' ? '#065f46' : '#10b981',
                 color: '#fff', border: 'none',
                 padding: '12px 28px', borderRadius: 10,
                 fontSize: 14, fontWeight: 700,
-                cursor: launchState && launchState !== 'done' ? 'not-allowed' : 'pointer'
+                cursor: launchState && launchState !== 'done' && launchState !== 'error'
+                  ? 'not-allowed' : 'pointer'
               }}
             >
               <Zap size={16} />
-              {launchState && launchState !== 'done' ? launchMsg : 'Launch Campaign →'}
+              {launchState === 'scraping'  ? 'Scraping profiles...' :
+               launchState === 'running'   ? 'Sending connections...' :
+               launchState === 'launching' ? 'Starting...' :
+               launchState === 'queued'    ? 'Queued ✓' :
+               launchState === 'error'     ? 'Retry Launch' :
+               launchState === 'done'      ? 'Launch Again →' :
+               'Launch Campaign →'}
             </button>
           </div>
         )}

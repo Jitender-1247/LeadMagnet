@@ -202,23 +202,18 @@ async function actionViewProfile(page, profileUrl) {
   try {
     // Use networkidle2 so LinkedIn's analytics pixel fires — this is what
     // actually registers the profile view in LinkedIn's system
-    await page.goto(profileUrl, {
-      waitUntil: 'networkidle2',
-      timeout:   60000
-    }).catch(async () => {
-      // If networkidle2 times out (common on slow connections), fall back
-      // to waiting for the profile name element instead
-      console.log('   ⚠️  networkidle2 timed out — waiting for profile element');
-      await page.waitForSelector('h1', { timeout: 15000 }).catch(() => {});
-    });
+    await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 })
+      .catch(async (err) => {
+        if (!err.message.includes('detached') && !err.message.includes('Target closed')) {
+          console.log('   ⚠️  navigation issue:', err.message.slice(0,60));
+        }
+        await page.waitForSelector('h1', { timeout: 15000 }).catch(() => {});
+      });
 
     // Verify we're actually on a profile page, not auth wall or 404
-    const currentUrl = page.url();
-    if (
-      currentUrl.includes('/authwall') ||
-      currentUrl.includes('/login')    ||
-      currentUrl.includes('checkpoint')
-    ) {
+    let currentUrl = '';
+    try { currentUrl = page.url(); } catch {}
+    if (currentUrl.includes('/authwall') || currentUrl.includes('/login') || currentUrl.includes('checkpoint')) {
       return { success: false, message: 'Auth wall hit' };
     }
 
@@ -253,7 +248,7 @@ async function actionViewProfile(page, profileUrl) {
     ];
 
     for (const step of scrollSteps) {
-      await page.evaluate(amount => window.scrollBy({ top: amount, behavior: 'smooth' }), step.amount);
+      await page.evaluate(amount => window.scrollBy({ top: amount, behavior: 'smooth' }), step.amount).catch(() => {});
 
       // Random pause between scrolls (like a human reading each section)
       await sleep(gaussianDelay(1200, 400, 600, 3000));
@@ -273,7 +268,7 @@ async function actionViewProfile(page, profileUrl) {
 
     // Scroll back up slowly (real users often scroll back up)
     if (Math.random() < 0.6) {
-      await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' })).catch(() => {});
       await sleep(gaussianDelay(1500, 400, 800, 3000));
     }
 
@@ -288,7 +283,7 @@ async function actionViewProfile(page, profileUrl) {
 
 async function actionFollow(page, profileUrl) {
   console.log('➕ Following:', profileUrl);
-  await page.goto(profileUrl, { waitUntil: 'networkidle2', timeout: 60000 })
+  await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 })
     .catch(() => page.waitForSelector('h1', { timeout: 15000 }).catch(() => {}));
   await sleep(readingDelay());
 
@@ -323,7 +318,7 @@ async function actionFollow(page, profileUrl) {
 
 async function actionConnect(page, profileUrl, note, lead) {
   console.log('🤝 Connecting with:', lead.name);
-  await page.goto(profileUrl, { waitUntil: 'networkidle2', timeout: 60000 })
+  await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 })
     .catch(() => page.waitForSelector('h1', { timeout: 15000 }).catch(() => {}));
   await sleep(readingDelay());
 
@@ -380,7 +375,7 @@ async function actionMessage(page, profileUrl, messageTemplate, lead) {
   console.log('💬 Messaging:', lead.name);
   const message = personalizeMessage(messageTemplate, lead);
 
-  await page.goto(profileUrl, { waitUntil: 'networkidle2', timeout: 60000 })
+  await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 })
     .catch(() => page.waitForSelector('h1', { timeout: 15000 }).catch(() => {}));
   await sleep(readingDelay());
 
@@ -469,7 +464,7 @@ async function actionEndorse(page, profileUrl) {
       const skillsSection = document.querySelector('#skills') ||
                             document.querySelector('[data-section="skills"]');
       if (skillsSection) skillsSection.scrollIntoView({ behavior: 'smooth' });
-    });
+    }).catch(() => {});
     await sleep(gaussianDelay(2000, 500, 1000, 4000));
 
     // Click endorse buttons (up to 3)
@@ -495,7 +490,7 @@ async function checkForReplies(userId, liAt) {
     const page = await makePage(browser, liAt);
     await page.goto('https://www.linkedin.com/messaging/', {
       waitUntil: 'domcontentloaded', timeout: 60000
-    });
+    }).catch(err => console.warn('[checkForReplies] nav:', err.message.slice(0,60)));
     await sleep(readingDelay());
 
     const threads = await page.evaluate(() => {
@@ -515,7 +510,15 @@ async function checkForReplies(userId, liAt) {
         }
       });
       return items.filter(i => i.hasUnread);
+    }).catch(err => {
+      console.warn('[checkForReplies] evaluate error:', err.message.slice(0, 60));
+      return [];
     });
+
+    if (!threads || threads.length === 0) {
+      await browser.close();
+      return 0;
+    }
 
     // Update leads that have replied
     for (const thread of threads) {
