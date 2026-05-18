@@ -504,12 +504,14 @@ export default function Leads() {
   }
 
   const filtered = leads.filter(l => {
-    const matchSearch =
-      l.name?.toLowerCase().includes(search.toLowerCase()) ||
-      l.company?.toLowerCase().includes(search.toLowerCase())
-    const matchFilter = filter === 'all' || l.status === filter
-    return matchSearch && matchFilter
-  })
+  const matchSearch = search.trim() === '' ? true : (
+    (l.name?.toLowerCase() || '').includes(search.toLowerCase()) ||
+    (l.company?.toLowerCase() || '').includes(search.toLowerCase()) ||
+    (l.headline?.toLowerCase() || '').includes(search.toLowerCase())
+  )
+  const matchFilter = filter === 'all' || l.status === filter
+  return matchSearch && matchFilter
+})
 
   const statusCounts = leads.reduce((acc, l) => {
     acc[l.status] = (acc[l.status] || 0) + 1
