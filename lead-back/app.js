@@ -12,11 +12,18 @@ var scheduler = require('./services/Scheduler');
 var app = express();
 app.set('trust proxy', 1);
 
-// Middleware
+
+// 2. Apply CORS to all routes
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}));
+app.options('*', cors());
 app.use(logger('dev'));
-app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 

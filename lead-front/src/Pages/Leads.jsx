@@ -385,6 +385,23 @@ export default function Leads() {
     } catch {}
   }
 
+  // Run Now — force-runs the campaign immediately using existing leads,
+  // no scraping needed, no URL validation required
+  const handleRunNow = async () => {
+    setLaunchState('running')
+    setLaunchMsg('Sending connections...')
+    try {
+      const { runCampaign } = await fetch(`${API}/campaigns/${campaignId}/run-now`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      }).then(r => r.json()).catch(() => ({}))
+      toast.success('⚡ Running campaign now!')
+    } catch (err) {
+      toast.error('Failed to run campaign')
+      setLaunchState('queued')
+    }
+  }
+
   const handleLaunch = async () => {
     if (!searchUrl.trim() || !searchUrl.includes('linkedin.com')) {
       toast.error('Please paste a valid LinkedIn search URL')
@@ -398,7 +415,7 @@ export default function Leads() {
       const res = await fetch(`${API}/campaigns/${campaignId}/launch`, {
         method:  'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ searchUrl, maxLeads })
+        body:    JSON.stringify({ searchUrl, maxLeads, force: true })
       })
 
       // Safely parse — response might not be JSON (rate limit, HTML error etc)
@@ -504,14 +521,12 @@ export default function Leads() {
   }
 
   const filtered = leads.filter(l => {
-  const matchSearch = search.trim() === '' ? true : (
-    (l.name?.toLowerCase() || '').includes(search.toLowerCase()) ||
-    (l.company?.toLowerCase() || '').includes(search.toLowerCase()) ||
-    (l.headline?.toLowerCase() || '').includes(search.toLowerCase())
-  )
-  const matchFilter = filter === 'all' || l.status === filter
-  return matchSearch && matchFilter
-})
+    const matchSearch =
+      l.name?.toLowerCase().includes(search.toLowerCase()) ||
+      l.company?.toLowerCase().includes(search.toLowerCase())
+    const matchFilter = filter === 'all' || l.status === filter
+    return matchSearch && matchFilter
+  })
 
   const statusCounts = leads.reduce((acc, l) => {
     acc[l.status] = (acc[l.status] || 0) + 1
@@ -601,8 +616,38 @@ export default function Leads() {
               send connection requests — no extra steps needed.
             </div>
 
-            {/* Status indicator when running */}
-            {launchState && launchState !== 'done' && launchState !== 'error' && (
+            {/* Queued state — show Run Now button */}
+            {launchState === 'queued' && (
+              <div style={{
+                background: '#f59e0b10', border: '1px solid #f59e0b30',
+                borderRadius: 10, padding: '12px 16px', marginBottom: 16
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 16 }}>⏰</span>
+                    <div>
+                      <div style={{ fontSize: 13, color: '#f59e0b', fontWeight: 600 }}>{launchMsg}</div>
+                      <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>
+                        Running in background — you can leave this page safely
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRunNow}
+                    style={{
+                      background: '#10b981', border: 'none', color: '#fff',
+                      padding: '7px 14px', borderRadius: 8, fontSize: 12,
+                      fontWeight: 600, cursor: 'pointer', flexShrink: 0
+                    }}
+                  >
+                    ⚡ Run Now
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Status indicator when actively running */}
+            {launchState && launchState !== 'done' && launchState !== 'error' && launchState !== 'queued' && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 background: '#10b98110', border: '1px solid #10b98130',
