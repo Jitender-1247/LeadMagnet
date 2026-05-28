@@ -4,13 +4,18 @@ import { toast, ToastContainer } from 'react-toastify'
 
 const API = import.meta.env.VITE_API_DB_URL
 
-const sectionStyle = {
-  background: '#111827', border: '1px solid #1e2535',
-  borderRadius: 16, padding: 28, marginBottom: 24
+function useIsMobile() {
+  const [w, setW] = useState(() => window.innerWidth)
+  useEffect(() => {
+    const fn = () => setW(window.innerWidth)
+    window.addEventListener('resize', fn)
+    return () => window.removeEventListener('resize', fn)
+  }, [])
+  return w < 768
 }
 
 const inputStyle = {
-  width: '100%', padding: '11px 16px',
+  width: '100%', padding: '11px 14px',
   background: '#0d1117', border: '1px solid #1e2535',
   borderRadius: 10, color: '#e2e8f0', fontSize: 14,
   outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit'
@@ -22,19 +27,17 @@ const labelStyle = {
 }
 
 export default function Settings() {
-  const [profile, setProfile] = useState({ name: '', email: '' })
+  const [profile, setProfile]             = useState({ name: '', email: '' })
   const [linkedinConnected, setLinkedinConnected] = useState(false)
   const [notifications, setNotifications] = useState({ replies: true, accepted: true, meetings: true })
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving]               = useState(false)
+  const isMobile                          = useIsMobile()
   const token = localStorage.getItem('token')
-  const uid = localStorage.getItem('uid')
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res = await fetch(`${API}/user/profile`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res  = await fetch(`${API}/user/profile`, { headers: { Authorization: `Bearer ${token}` } })
         const data = await res.json()
         setProfile({ name: data.name || '', email: data.email || '' })
         setLinkedinConnected(!!data.linkedinConnected)
@@ -52,90 +55,91 @@ export default function Settings() {
         body: JSON.stringify(profile)
       })
       toast.success('Settings saved')
-    } catch {
-      toast.error('Failed to save')
-    } finally {
-      setSaving(false)
-    }
+    } catch { toast.error('Failed to save') }
+    finally { setSaving(false) }
   }
 
   const handleDisconnectLinkedIn = async () => {
     try {
-      await fetch(`${API}/auth/linkedin-disconnect`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token}` }
-      })
+      await fetch(`${API}/auth/linkedin-disconnect`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
       setLinkedinConnected(false)
       toast.success('LinkedIn disconnected')
-    } catch {
-      toast.error('Failed to disconnect')
-    }
+    } catch { toast.error('Failed to disconnect') }
+  }
+
+  const sectionStyle = {
+    background: '#111827', border: '1px solid #1e2535',
+    borderRadius: 16, padding: isMobile ? 20 : 28, marginBottom: 20
   }
 
   return (
     <div style={{ minHeight: '100vh', background: '#0d1117', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif' }}>
       <ToastContainer theme="dark" />
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '40px 32px' }}>
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: isMobile ? '20px 16px 40px' : '40px 32px' }}>
 
-        <div style={{ marginBottom: 36 }}>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#fff' }}>Settings</div>
-          <div style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>Manage your account and preferences</div>
+        <div style={{ marginBottom: isMobile ? 24 : 36 }}>
+          <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: '#fff' }}>Settings</div>
+          <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>Manage your account and preferences</div>
         </div>
 
         {/* Profile */}
         <div style={sectionStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-            <User size={16} color="#6366f1" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <User size={15} color="#6366f1" />
             <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>Profile</div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+            gap: 14
+          }}>
             <div>
               <label style={labelStyle}>Full Name</label>
-              <input value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))}
-                style={inputStyle} />
+              <input value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} style={inputStyle} />
             </div>
             <div>
               <label style={labelStyle}>Email</label>
-              <input value={profile.email} onChange={e => setProfile(p => ({ ...p, email: e.target.value }))}
-                type="email" style={inputStyle} />
+              <input value={profile.email} onChange={e => setProfile(p => ({ ...p, email: e.target.value }))} type="email" style={inputStyle} />
             </div>
           </div>
         </div>
 
-        {/* LinkedIn Connection */}
+        {/* LinkedIn */}
         <div style={sectionStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-            <Linkedin size={16} color="#0077b5" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <Linkedin size={15} color="#0077b5" />
             <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>LinkedIn Connection</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{
+            display: 'flex', alignItems: isMobile ? 'flex-start' : 'center',
+            justifyContent: 'space-between', flexDirection: isMobile ? 'column' : 'row', gap: 16
+          }}>
             <div>
               <div style={{ fontSize: 14, color: '#e2e8f0' }}>
                 {linkedinConnected ? 'LinkedIn account connected' : 'No LinkedIn account connected'}
               </div>
-              <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
-                {linkedinConnected
-                  ? 'Your session is active and automation is enabled'
-                  : 'Connect your LinkedIn to start automated outreach'}
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+                {linkedinConnected ? 'Your session is active and automation is enabled' : 'Connect your LinkedIn to start automated outreach'}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div>
               {linkedinConnected ? (
                 <button onClick={handleDisconnectLinkedIn} style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
+                  display: 'flex', alignItems: 'center', gap: 7,
                   background: '#ef444422', color: '#ef4444',
                   border: '1px solid #ef444433', padding: '9px 16px',
-                  borderRadius: 9, fontSize: 13, cursor: 'pointer'
+                  borderRadius: 9, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap'
                 }}>
-                  <Link2Off size={14} /> Disconnect
+                  <Link2Off size={13} /> Disconnect
                 </button>
               ) : (
                 <a href="/linkedin-connect" style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  background: '#0077b5', color: '#fff',
-                  border: 'none', padding: '9px 16px',
-                  borderRadius: 9, fontSize: 13, cursor: 'pointer', textDecoration: 'none'
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  background: '#0077b5', color: '#fff', border: 'none',
+                  padding: '9px 16px', borderRadius: 9, fontSize: 13,
+                  cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap'
                 }}>
-                  <Linkedin size={14} /> Connect LinkedIn
+                  <Linkedin size={13} /> Connect LinkedIn
                 </a>
               )}
             </div>
@@ -143,8 +147,8 @@ export default function Settings() {
 
           {linkedinConnected && (
             <div style={{
-              marginTop: 20, padding: 16, background: '#0d1117',
-              borderRadius: 10, display: 'flex', gap: 24
+              marginTop: 18, padding: 14, background: '#0d1117',
+              borderRadius: 10, display: 'flex', gap: 20, flexWrap: 'wrap'
             }}>
               {[
                 { label: 'Dedicated IP', value: 'Assigned', color: '#10b981' },
@@ -152,8 +156,8 @@ export default function Settings() {
                 { label: 'Daily Limit', value: '20 / day', color: '#f59e0b' },
               ].map(({ label, value, color }) => (
                 <div key={label}>
-                  <div style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color, marginTop: 4 }}>{value}</div>
+                  <div style={{ fontSize: 10, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color, marginTop: 3 }}>{value}</div>
                 </div>
               ))}
             </div>
@@ -162,41 +166,43 @@ export default function Settings() {
 
         {/* Security */}
         <div style={sectionStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-            <Shield size={16} color="#10b981" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <Shield size={15} color="#10b981" />
             <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>Security</div>
           </div>
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>New Password</label>
-            <input type="password" placeholder="Leave blank to keep current" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Confirm Password</label>
-            <input type="password" placeholder="Confirm new password" style={inputStyle} />
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+            <div>
+              <label style={labelStyle}>New Password</label>
+              <input type="password" placeholder="Leave blank to keep current" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Confirm Password</label>
+              <input type="password" placeholder="Confirm new password" style={inputStyle} />
+            </div>
           </div>
         </div>
 
         {/* Notifications */}
         <div style={sectionStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-            <Bell size={16} color="#f59e0b" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <Bell size={15} color="#f59e0b" />
             <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>Notifications</div>
           </div>
           {[
-            { key: 'replies', label: 'New replies', desc: 'When a prospect replies to your message' },
-            { key: 'accepted', label: 'Connection accepted', desc: 'When a connection request is accepted' },
-            { key: 'meetings', label: 'Meetings booked', desc: 'When a prospect agrees to a call' },
+            { key: 'replies',  label: 'New replies',          desc: 'When a prospect replies to your message' },
+            { key: 'accepted', label: 'Connection accepted',  desc: 'When a connection request is accepted' },
+            { key: 'meetings', label: 'Meetings booked',      desc: 'When a prospect agrees to a call' },
           ].map(({ key, label, desc }) => (
             <div key={key} style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '14px 0', borderBottom: '1px solid #1e2535'
+              padding: '14px 0', borderBottom: '1px solid #1e2535', gap: 16
             }}>
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, color: '#e2e8f0', fontWeight: 500 }}>{label}</div>
                 <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{desc}</div>
               </div>
               <div onClick={() => setNotifications(p => ({ ...p, [key]: !p[key] }))} style={{
-                width: 44, height: 24, borderRadius: 12, cursor: 'pointer', position: 'relative',
+                width: 44, height: 24, borderRadius: 12, cursor: 'pointer', position: 'relative', flexShrink: 0,
                 background: notifications[key] ? '#10b981' : '#1e2535', transition: 'background 0.2s'
               }}>
                 <div style={{
@@ -213,8 +219,8 @@ export default function Settings() {
         <button onClick={handleSave} disabled={saving} style={{
           display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center',
           width: '100%', background: '#10b981', color: '#fff', border: 'none',
-          padding: '14px', borderRadius: 12, fontSize: 15,
-          fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1
+          padding: '14px', borderRadius: 12, fontSize: 15, fontWeight: 600,
+          cursor: 'pointer', opacity: saving ? 0.7 : 1
         }}>
           <Save size={16} />
           {saving ? 'Saving...' : 'Save Settings'}

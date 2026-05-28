@@ -6,7 +6,6 @@ import Register       from './Pages/Register'
 import VerifyEmail    from './Components/verifyEmail'
 import VerifyLinkedin from './Components/verifyLinkedin'
 import LinkedIn       from './Pages/LinkedIn'
-import Test           from './Pages/Test'
 
 import Layout         from './Pages/Layout'
 import Dashboard      from './Pages/Dashboard'
@@ -39,7 +38,6 @@ export default function App() {
       <Route path="/verify-email"     element={<VerifyEmail />} />
       <Route path="/connect-linkedin" element={<Protected><LinkedIn /></Protected>} />
       <Route path="/verify-linkedin"  element={<Protected><VerifyLinkedin /></Protected>} />
-      <Route path="/test"             element={<Test />} />
 
       {/* ── Sequence builder — protected but full screen (no sidebar) ── */}
       <Route path="/campaigns/new/sequence"

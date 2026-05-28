@@ -26,7 +26,6 @@ export default function Register() {
       const data = await response.json();
       if (response.ok) {
         localStorage.setItem('uid',data.uid);
-        localStorage.setItem('token', data.token);
         toast.success('Registration successful!');
         setTimeout(() => navigate('/verify-email'), 1000);
       } else {

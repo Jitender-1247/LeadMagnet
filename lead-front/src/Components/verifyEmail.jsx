@@ -31,6 +31,7 @@ export default function VerifyEmail() {
       const data = await res.json()
 
       if (res.ok) {
+        localStorage.setItem('token', data.token)
         toast.success('Email verified successfully 🚀')
         setTimeout(() => navigate('/connect-linkedin'), 1000)
       } else {

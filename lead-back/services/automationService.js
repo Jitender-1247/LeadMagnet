@@ -6,7 +6,7 @@
 
 const { chromium } = require('playwright');
 const { getLaunchConfig } = require('./browserConfig');
-const { db }     = require('../config/firebase');
+const { db } = require('../config/firebase');
 const { decrypt } = require('./linkedinService');
 const {
   sleep, clickDelay, readingDelay, thinkingDelay,
@@ -15,10 +15,10 @@ const {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DAILY_CONNECTION_LIMIT = 20;
-const WORKING_HOUR_START     = 9;
-const WORKING_HOUR_END       = 18;
-const WARMUP_DAYS            = 14;
-const WARMUP_START_LIMIT     = 5;
+const WORKING_HOUR_START = 9;
+const WORKING_HOUR_END = 18;
+const WARMUP_DAYS = 7;   // FIX: reduced from 14 — reaches full limit faster
+const WARMUP_START_LIMIT = 10;  // FIX: raised from 5 — enough to actually test
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const STEALTH_SCRIPT = `
@@ -31,28 +31,34 @@ const STEALTH_SCRIPT = `
 
 // ── Timing helpers ────────────────────────────────────────────────────────────
 function isSafeToRun() {
-  const now  = new Date();
-  const hour = now.getHours();
-  const day  = now.getDay();
+  // FIX: use configured timezone offset, not server local time.
+  // Server runs UTC; users are in different zones. Default = IST (UTC+5:30).
+  // Set TZ_OFFSET_HOURS in .env to match your timezone (e.g. 5.5 for IST, -5 for EST).
+  const tzOffset = parseFloat(process.env.TZ_OFFSET_HOURS || '5.5');
+  const now = new Date(Date.now() + tzOffset * 60 * 60 * 1000);
+  const hour = now.getUTCHours();
+  const day = now.getUTCDay();
   if (day === 0 || day === 6) return Math.random() < 0.3;
   if (hour < WORKING_HOUR_START || hour >= WORKING_HOUR_END) return false;
   return true;
 }
 
 function getNextSafeWindow() {
-  const now  = new Date();
+  const tzOffset = parseFloat(process.env.TZ_OFFSET_HOURS || '5.5');
+  const now = new Date(Date.now() + tzOffset * 60 * 60 * 1000);
+  const day = now.getUTCDay();
   const next = new Date(now);
-  const day  = now.getDay();
-  if (day === 6) { next.setDate(now.getDate() + 2); next.setHours(WORKING_HOUR_START, 0, 0, 0); }
-  else if (day === 0) { next.setDate(now.getDate() + 1); next.setHours(WORKING_HOUR_START, 0, 0, 0); }
-  else if (now.getHours() >= WORKING_HOUR_END) { next.setDate(now.getDate() + 1); next.setHours(WORKING_HOUR_START, 0, 0, 0); }
-  else { next.setHours(WORKING_HOUR_START, 0, 0, 0); }
-  return next.toISOString();
+  if (day === 6) { next.setUTCDate(now.getUTCDate() + 2); next.setUTCHours(WORKING_HOUR_START, 0, 0, 0); }
+  else if (day === 0) { next.setUTCDate(now.getUTCDate() + 1); next.setUTCHours(WORKING_HOUR_START, 0, 0, 0); }
+  else if (now.getUTCHours() >= WORKING_HOUR_END) { next.setUTCDate(now.getUTCDate() + 1); next.setUTCHours(WORKING_HOUR_START, 0, 0, 0); }
+  else { next.setUTCHours(WORKING_HOUR_START, 0, 0, 0); }
+  // Convert back to real UTC for storage
+  return new Date(next.getTime() - tzOffset * 60 * 60 * 1000).toISOString();
 }
 
 async function getDailyLimit(userId) {
   const userDoc = await db.collection('users').doc(userId).get();
-  const user    = userDoc.data();
+  const user = userDoc.data();
   const createdAt = user?.createdAt ? new Date(user.createdAt) : new Date();
   const daysSinceCreation = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
   if (daysSinceCreation >= WARMUP_DAYS) return DAILY_CONNECTION_LIMIT;
@@ -62,7 +68,7 @@ async function getDailyLimit(userId) {
 
 async function getConnectionsSentToday(userId) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const snap  = await db.collection('leads')
+  const snap = await db.collection('leads')
     .where('userId', '==', userId)
     .where('status', '==', 'requested')
     .where('requestedAt', '>=', today.toISOString())
@@ -90,8 +96,8 @@ async function makePage(browser, liAt) {
   const context = await browser.newContext({
     userAgent: UA,
     viewport: {
-      width:  1280 + Math.floor(Math.random() * 200),
-      height:  800 + Math.floor(Math.random() * 100),
+      width: 1280 + Math.floor(Math.random() * 200),
+      height: 800 + Math.floor(Math.random() * 100),
     },
     locale: 'en-US',
     timezoneId: 'America/New_York',
@@ -114,10 +120,10 @@ async function makePage(browser, liAt) {
 // ── Message personalisation ───────────────────────────────────────────────────
 function personalizeMessage(template, lead) {
   return template
-    .replace(/\{name\}/gi,      lead.name      || 'there')
-    .replace(/\{company\}/gi,   lead.company   || 'your company')
-    .replace(/\{headline\}/gi,  lead.headline  || 'your role')
-    .replace(/\{location\}/gi,  lead.location  || 'your area')
+    .replace(/\{name\}/gi, lead.name || 'there')
+    .replace(/\{company\}/gi, lead.company || 'your company')
+    .replace(/\{headline\}/gi, lead.headline || 'your role')
+    .replace(/\{location\}/gi, lead.location || 'your area')
     .replace(/\{firstName\}/gi, (lead.name || 'there').split(' ')[0]);
 }
 
@@ -125,7 +131,7 @@ function personalizeMessage(template, lead) {
 async function gotoProfile(page, url) {
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForSelector('h1, main', { timeout: 10000 }).catch(() => {});
+    await page.waitForSelector('h1, main', { timeout: 10000 }).catch(() => { });
     await sleep(readingDelay());
     const currentUrl = page.url();
     if (currentUrl.includes('/authwall') || currentUrl.includes('/login') || currentUrl.includes('checkpoint')) {
@@ -150,7 +156,7 @@ async function actionViewProfile(page, profileUrl) {
     await sleep(gaussianDelay(400, 150, 200, 800));
 
     for (const amount of [280, 320, 280, 350, 300].map(a => a + Math.random() * 120)) {
-      await page.evaluate(a => window.scrollBy({ top: a, behavior: 'smooth' }), amount).catch(() => {});
+      await page.evaluate(a => window.scrollBy({ top: a, behavior: 'smooth' }), amount).catch(() => { });
       await sleep(gaussianDelay(1200, 400, 600, 3000));
       if (Math.random() < 0.4) {
         await page.mouse.move(width * 0.2 + Math.random() * width * 0.6, height * 0.3 + Math.random() * height * 0.4, { steps: 8 });
@@ -159,7 +165,7 @@ async function actionViewProfile(page, profileUrl) {
 
     await sleep(gaussianDelay(2500, 800, 1500, 5000));
     if (Math.random() < 0.6) {
-      await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' })).catch(() => {});
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' })).catch(() => { });
       await sleep(gaussianDelay(1500, 400, 800, 3000));
     }
 
@@ -211,40 +217,107 @@ async function actionConnect(page, profileUrl, note, lead) {
   if (nav.blocked) return { success: false, message: 'Auth wall' };
 
   try {
-    // Find Connect button
-    let connectBtn = page.locator('button[aria-label*="Connect"]').first();
-    let connectVisible = await connectBtn.isVisible().catch(() => false);
+    // ── Find Connect button ───────────────────────────────────────────────────
+    const connectSelectors = [
+      'button[aria-label^="Connect with"]',
+      'button[aria-label="Connect"]',
+      'button[aria-label*="Invite"][aria-label*="connect"]',
+      'button[aria-label*="Connect"]',
+    ];
 
-    if (!connectVisible) {
-      // Try More menu
-      const moreBtn = page.locator('button[aria-label*="More actions"]').first();
-      if (await moreBtn.isVisible().catch(() => false)) {
-        await moreBtn.click();
-        await sleep(clickDelay());
-        connectBtn = page.locator('span:text("Connect"), div[aria-label*="Connect"]').first();
-        connectVisible = await connectBtn.isVisible().catch(() => false);
+    let connectBtn = null;
+
+    for (const sel of connectSelectors) {
+      const btn = page.locator(sel).first();
+      if (await btn.isVisible().catch(() => false)) {
+        connectBtn = btn;
+        console.log(`   ✅ Connect button found: ${sel}`);
+        break;
       }
     }
 
-    if (!connectVisible) {
-      const visibleBtns = await page.$$eval('button', els => els.map(e => e.getAttribute('aria-label')).filter(Boolean).slice(0, 10));
+    // Try More actions menu if direct buttons not found
+    if (!connectBtn) {
+      const moreSelectors = [
+        'button[aria-label*="More actions"]',
+        'button[aria-label*="more options"]',
+        'button[aria-label*="More options"]',
+      ];
+      for (const sel of moreSelectors) {
+        const moreBtn = page.locator(sel).first();
+        if (await moreBtn.isVisible().catch(() => false)) {
+          await moreBtn.click();
+          await sleep(clickDelay());
+          const menuConnect = page.locator('div[aria-label*="Connect"], span:text-is("Connect"), li:has-text("Connect") button').first();
+          if (await menuConnect.isVisible().catch(() => false)) {
+            connectBtn = menuConnect;
+            console.log('   ✅ Connect found in More menu');
+          }
+          break;
+        }
+      }
+    }
+
+    if (!connectBtn) {
+      const visibleBtns = await page.$$eval('button', els =>
+        els.map(e => e.getAttribute('aria-label') || e.innerText?.trim()).filter(Boolean).slice(0, 15)
+      ).catch(() => []);
       console.warn('   ⚠️ Connect not found. Buttons:', visibleBtns.join(' | '));
+      const alreadyConnected = visibleBtns.some(b =>
+        b.toLowerCase().includes('message') ||
+        b.toLowerCase().includes('pending') ||
+        b.toLowerCase().includes('following')
+      );
+      if (alreadyConnected) return { success: false, message: 'Already connected or pending' };
       return { success: false, message: 'Connect button not found' };
     }
 
     await connectBtn.click();
-    await sleep(clickDelay());
-    await sleep(1500);
+    await sleep(2000); // wait for modal to appear
 
-    // Handle "How do you know" modal
-    const howKnowBtn = page.locator('button[aria-label*="Other"], button[data-view-name*="connect-other"]').first();
-    if (await howKnowBtn.isVisible().catch(() => false)) {
-      await howKnowBtn.click();
-      await sleep(clickDelay());
-      console.log('   Bypassed "How do you know" modal');
+    // ── Handle "How do you know X?" modal ────────────────────────────────────
+    // LinkedIn shows this modal for 2nd/3rd degree connections.
+    // Must select a relationship option THEN click the modal's Connect button.
+    const howKnowModal = page.locator('[role="dialog"]').first();
+    const howKnowVisible = await howKnowModal.isVisible().catch(() => false);
+
+    if (howKnowVisible) {
+      // Try to select "Other" option inside the modal
+      const otherSelectors = [
+        'button[aria-label*="Other"]',
+        'button[data-view-name*="connect-other"]',
+        'label:has-text("Other")',
+        'input[value="OTHER"] + label',
+        'li:has-text("Other") button',
+      ];
+      let selectedOption = false;
+      for (const sel of otherSelectors) {
+        const optBtn = howKnowModal.locator(sel).first();
+        if (await optBtn.isVisible().catch(() => false)) {
+          await optBtn.click();
+          await sleep(1000);
+          selectedOption = true;
+          console.log('   Bypassed "How do you know" modal — selected Other');
+          break;
+        }
+      }
+
+      // After selecting an option (or if no option needed),
+      // click the Connect/Send button INSIDE the modal
+      if (selectedOption) {
+        const modalConnectBtn = howKnowModal.locator(
+          'button[aria-label*="Connect"], button[aria-label*="Send"], button.artdeco-button--primary'
+        ).first();
+        if (await modalConnectBtn.isVisible().catch(() => false)) {
+          await modalConnectBtn.click();
+          await sleep(2000);
+          console.log('✅ Connection sent after "How do you know" modal');
+          return { success: true };
+        }
+      }
     }
 
-    // Add note if provided
+    // ── Add note if provided ──────────────────────────────────────────────────
     if (note) {
       const addNoteBtn = page.locator('button[aria-label*="Add a note"]').first();
       if (await addNoteBtn.isVisible().catch(() => false)) {
@@ -260,39 +333,71 @@ async function actionConnect(page, profileUrl, note, lead) {
       }
     }
 
-    // Find Send button
+    // ── Find Send / confirm button ─────────────────────────────────────────────
+    // IMPORTANT: scope search to modal dialog first to avoid hitting
+    // the page's own Connect button which is still visible behind the modal.
     const sendSelectors = [
       'button[aria-label*="Send now"]',
       'button[aria-label*="Send invitation"]',
       'button[aria-label*="Send without a note"]',
-      'button[aria-label*="Connect"]',
+      // NOTE: intentionally removed 'button[aria-label*="Connect"]' here
+      // because it matches the page-level Connect button behind the modal
     ];
 
     let sendBtn = null;
-    for (const sel of sendSelectors) {
-      const btn = page.locator(sel).first();
-      if (await btn.isVisible().catch(() => false)) {
-        sendBtn = btn;
-        console.log(`   Found send btn: ${sel}`);
-        break;
+
+    // 1st: look inside modal dialog
+    const modalDialog = page.locator('[role="dialog"]').first();
+    if (await modalDialog.isVisible().catch(() => false)) {
+      for (const sel of sendSelectors) {
+        const btn = modalDialog.locator(sel).first();
+        if (await btn.isVisible().catch(() => false)) {
+          sendBtn = btn;
+          console.log(`   Found send btn in modal: ${sel}`);
+          break;
+        }
+      }
+      // Fallback: any primary action button inside the modal
+      if (!sendBtn) {
+        const primaryBtn = modalDialog.locator('button.artdeco-button--primary').first();
+        if (await primaryBtn.isVisible().catch(() => false)) {
+          sendBtn = primaryBtn;
+          const label = await primaryBtn.getAttribute('aria-label').catch(() => '');
+          const text  = await primaryBtn.innerText().catch(() => '');
+          console.log(`   Found primary modal button: "${label || text}"`);
+        }
+      }
+    }
+
+    // 2nd: page-wide fallback (but NOT 'button[aria-label*="Connect"]')
+    if (!sendBtn) {
+      for (const sel of sendSelectors) {
+        const btn = page.locator(sel).first();
+        if (await btn.isVisible().catch(() => false)) {
+          sendBtn = btn;
+          console.log(`   Found send btn page-wide: ${sel}`);
+          break;
+        }
       }
     }
 
     if (!sendBtn) {
-      const modalBtns = await page.$$eval('button', els => els.map(e => e.getAttribute('aria-label') || e.innerText).filter(Boolean));
-      console.warn('   ⚠️ Send button not found. Modal buttons:', modalBtns.join(' | '));
-      return { success: false, message: 'Send button not found' };
+      const allBtns = await page.$$eval('button', els =>
+        els.map(e => e.getAttribute('aria-label') || e.innerText?.trim()).filter(Boolean)
+      ).catch(() => []);
+      console.warn('   ⚠️ Send button not found. All buttons:', allBtns.join(' | '));
+      return { success: false, message: 'Send button not found in connect modal' };
     }
 
     await sendBtn.click();
     await sleep(2000);
 
-    // Verify: Connect button should change to Pending
+    // Verify sent
     const pendingBtn = page.locator('button[aria-label*="Pending"], button[aria-label*="Message"]').first();
     if (await pendingBtn.isVisible().catch(() => false)) {
-      console.log('✅ Connection request confirmed — button changed to Pending/Message');
+      console.log('✅ Connection confirmed — button changed to Pending/Message');
     } else {
-      console.log('✅ Connection request sent (button state unclear)');
+      console.log('✅ Connection request sent (button state not verified)');
     }
 
     return { success: true };
@@ -388,11 +493,11 @@ async function actionEndorse(page, profileUrl) {
     await page.evaluate(() => {
       const el = document.querySelector('#skills, [data-section="skills"]');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
-    }).catch(() => {});
+    }).catch(() => { });
     await sleep(gaussianDelay(2000, 500, 1000, 4000));
 
     const endorseBtns = await page.locator('button[aria-label*="Endorse"]').all();
-    const toEndorse   = endorseBtns.slice(0, 3);
+    const toEndorse = endorseBtns.slice(0, 3);
 
     for (const btn of toEndorse) {
       if (await btn.isVisible().catch(() => false)) {
@@ -421,16 +526,16 @@ async function checkForReplies(userId, liAt) {
     const threads = await page.evaluate(() => {
       const items = [];
       document.querySelectorAll('.msg-conversation-listitem').forEach(el => {
-        const nameEl   = el.querySelector('.msg-conversation-listitem__participant-names');
-        const timeEl   = el.querySelector('time');
+        const nameEl = el.querySelector('.msg-conversation-listitem__participant-names');
+        const timeEl = el.querySelector('time');
         const unreadEl = el.querySelector('.msg-conversation-listitem__unread-count');
-        const linkEl   = el.querySelector('a');
+        const linkEl = el.querySelector('a');
         if (nameEl && linkEl && unreadEl) {
           items.push({
-            name:      nameEl.innerText.trim(),
+            name: nameEl.innerText.trim(),
             threadUrl: 'https://www.linkedin.com' + linkEl.getAttribute('href'),
             hasUnread: parseInt(unreadEl.innerText || '0') > 0,
-            time:      timeEl ? timeEl.getAttribute('datetime') : null,
+            time: timeEl ? timeEl.getAttribute('datetime') : null,
           });
         }
       });
@@ -461,19 +566,19 @@ async function checkForReplies(userId, liAt) {
 // ── Step executor ─────────────────────────────────────────────────────────────
 async function executeStep(page, step, lead, profileUrl) {
   switch (step.type) {
-    case 'connect':      return actionConnect(page, profileUrl, step.note || '', lead);
-    case 'message':      return actionMessage(page, profileUrl, step.message || '', lead);
-    case 'inmail':       return actionInMail(page, profileUrl, step.subject || '', step.message || '', lead);
+    case 'connect': return actionConnect(page, profileUrl, step.note || '', lead);
+    case 'message': return actionMessage(page, profileUrl, step.message || '', lead);
+    case 'inmail': return actionInMail(page, profileUrl, step.subject || '', step.message || '', lead);
     case 'view_profile': return actionViewProfile(page, profileUrl);
-    case 'follow':       return actionFollow(page, profileUrl);
-    case 'endorse':      return actionEndorse(page, profileUrl);
-    case 'wait':         return { success: true, skipped: true };
-    default:             return { success: false, message: `Unknown step type: ${step.type}` };
+    case 'follow': return actionFollow(page, profileUrl);
+    case 'endorse': return actionEndorse(page, profileUrl);
+    case 'wait': return { success: true, skipped: true };
+    default: return { success: false, message: `Unknown step type: ${step.type}` };
   }
 }
 
 // ── Main campaign runner ──────────────────────────────────────────────────────
-async function runCampaign(campaignId) {
+async function runCampaign(campaignId, { force = false } = {}) {
   const campaignRef = db.collection('campaigns').doc(campaignId);
   const campaignDoc = await campaignRef.get();
 
@@ -494,17 +599,17 @@ async function runCampaign(campaignId) {
   const userId = campaign.userId;
 
   try {
-    if (!isSafeToRun()) {
+    if (!force && !isSafeToRun()) {
       const nextWindow = getNextSafeWindow();
       console.log(`[automation] Outside safe hours. Next window: ${nextWindow}`);
       await campaignRef.update({ isRunning: false, nextScheduledAt: nextWindow });
       return { status: 'scheduled', nextWindow };
     }
 
-    const dailyLimit  = await getDailyLimit(userId);
+    const dailyLimit = await getDailyLimit(userId);
     const variedLimit = applyDailyVariance(dailyLimit);
-    const sentToday   = await getConnectionsSentToday(userId);
-    const remaining   = variedLimit - sentToday;
+    const sentToday = await getConnectionsSentToday(userId);
+    const remaining = variedLimit - sentToday;
 
     if (remaining <= 0) {
       console.log(`[automation] Daily limit reached (${sentToday}/${variedLimit})`);
@@ -515,7 +620,7 @@ async function runCampaign(campaignId) {
     console.log(`[automation] Daily budget: ${remaining} actions remaining`);
 
     const userDoc = await db.collection('users').doc(userId).get();
-    const user    = userDoc.data();
+    const user = userDoc.data();
 
     if (!user.linkedinSession) {
       console.log('[automation] No LinkedIn session');
@@ -523,9 +628,9 @@ async function runCampaign(campaignId) {
       return;
     }
 
-    const liAt    = decrypt(user.linkedinSession);
+    const liAt = decrypt(user.linkedinSession);
     const browser = await launchBrowser();
-    const page    = await makePage(browser, liAt);
+    const page = await makePage(browser, liAt);
 
     const sequence = campaign.sequence || [];
     if (sequence.length === 0) {
@@ -548,9 +653,19 @@ async function runCampaign(campaignId) {
     for (const leadDoc of leadsSnap.docs) {
       if (actionsCount >= remaining) break;
 
-      const lead      = { id: leadDoc.id, ...leadDoc.data() };
-      const firstStep = sequence.find(s => s.type !== 'wait');
-      if (!firstStep) continue;
+      const lead = { id: leadDoc.id, ...leadDoc.data() };
+
+      // FIX: start from lead's currentStep, not always step 0.
+      // Previously always picked first non-wait step which meant after
+      // view_profile it would run view_profile again forever.
+      let stepIdx = lead.currentStep || 0;
+      let firstStep = sequence[stepIdx];
+      while (firstStep && firstStep.type === 'wait') { stepIdx++; firstStep = sequence[stepIdx]; }
+
+      if (!firstStep) {
+        await leadDoc.ref.update({ status: 'sequence_complete', completedAt: new Date().toISOString() });
+        continue;
+      }
 
       try {
         const result = await executeStep(page, firstStep, lead, lead.profileUrl);
@@ -558,9 +673,9 @@ async function runCampaign(campaignId) {
         if (result.success && !result.skipped) {
           const newStatus = firstStep.type === 'connect' ? 'requested' : 'contacted';
           await leadDoc.ref.update({
-            status: newStatus, currentStep: 1,
+            status: newStatus, currentStep: stepIdx + 1,
             requestedAt: new Date().toISOString(),
-            nextActionAt: getNextActionAt(sequence, 1),
+            nextActionAt: getNextActionAt(sequence, stepIdx + 1),
           });
           actionsCount++;
           console.log(`[campaign] ✅ ${firstStep.type} succeeded for ${lead.name} — total: ${actionsCount}`);
@@ -595,23 +710,29 @@ async function processFollowUps() {
     if (campaignsSnap.empty) return;
 
     for (const campaignDoc of campaignsSnap.docs) {
-      const campaign   = campaignDoc.data();
+      const campaign = campaignDoc.data();
       const campaignId = campaignDoc.id;
-      const sequence   = campaign.sequence || [];
+      const sequence = campaign.sequence || [];
       if (sequence.length === 0) continue;
 
       const userDoc = await db.collection('users').doc(campaign.userId).get();
-      const user    = userDoc.data();
+      const user = userDoc.data();
       if (!user?.linkedinSession) continue;
 
-      const leadsSnap = await db.collection('leads')
-        .where('campaignId', '==', campaignId)
-        .where('status', '==', 'accepted')
-        .get();
+      // FIX: query both 'contacted' (after view_profile/follow/endorse)
+      // AND 'accepted' (after connect was accepted by recipient).
+      // Previously only querying 'accepted' meant 'contacted' leads were
+      // stuck forever and never got the connect step.
+      const [contactedSnap, acceptedSnap] = await Promise.all([
+        db.collection('leads').where('campaignId', '==', campaignId).where('status', '==', 'contacted').get(),
+        db.collection('leads').where('campaignId', '==', campaignId).where('status', '==', 'accepted').get(),
+      ]);
+      const allDocs = [...contactedSnap.docs, ...acceptedSnap.docs];
+      const leadsSnap = { empty: allDocs.length === 0, docs: allDocs };
 
       if (leadsSnap.empty) continue;
 
-      const now      = new Date();
+      const now = new Date();
       const dueLeads = leadsSnap.docs.filter(doc => {
         const lead = doc.data();
         if (!lead.nextActionAt) return true;
@@ -622,17 +743,17 @@ async function processFollowUps() {
 
       console.log(`[follow-up] Campaign ${campaignId}: ${dueLeads.length} leads due`);
 
-      const liAt    = decrypt(user.linkedinSession);
+      const liAt = decrypt(user.linkedinSession);
       const browser = await launchBrowser();
-      const page    = await makePage(browser, liAt);
+      const page = await makePage(browser, liAt);
       let followUpCount = 0;
 
       for (const leadDoc of dueLeads) {
-        const lead        = { id: leadDoc.id, ...leadDoc.data() };
+        const lead = { id: leadDoc.id, ...leadDoc.data() };
         const currentStep = lead.currentStep || 0;
 
         let stepIdx = currentStep;
-        let step    = sequence[stepIdx];
+        let step = sequence[stepIdx];
         while (step && step.type === 'wait') { stepIdx++; step = sequence[stepIdx]; }
 
         if (!step) {
@@ -684,8 +805,8 @@ async function checkAndSendMessages(campaignId) {
   const campaignDoc = await db.collection('campaigns').doc(campaignId).get();
   if (!campaignDoc.exists) return;
   const campaign = campaignDoc.data();
-  const userDoc  = await db.collection('users').doc(campaign.userId).get();
-  const user     = userDoc.data();
+  const userDoc = await db.collection('users').doc(campaign.userId).get();
+  const user = userDoc.data();
   if (!user.linkedinSession) return;
   const liAt = decrypt(user.linkedinSession);
   try { await checkForReplies(campaign.userId, liAt); } catch (err) { console.error('[reply-check] Error:', err.message); }
