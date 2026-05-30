@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   User, Lock, Linkedin, Shield,
   Save, Link2Off, ArrowLeft, CheckCircle,
-  XCircle, Zap, Users, MessageSquare, Award
+  XCircle, Zap, Users, MessageSquare, Award,
+  Camera, Loader2, X
 } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify'
 
@@ -46,6 +47,30 @@ function StatBadge({ label, value, color, icon: Icon }) {
   )
 }
 
+function compressImage(file, maxSize = 300) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width  = maxSize
+        canvas.height = maxSize
+        const ctx  = canvas.getContext('2d')
+        const size = Math.min(img.width, img.height)
+        const sx   = (img.width  - size) / 2
+        const sy   = (img.height - size) / 2
+        ctx.drawImage(img, sx, sy, size, size, 0, 0, maxSize, maxSize)
+        resolve(canvas.toDataURL('image/jpeg', 0.85))
+      }
+      img.onerror = reject
+      img.src = e.target.result
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function Profile() {
   const navigate  = useNavigate()
   const isMobile  = useIsMobile()
@@ -62,6 +87,11 @@ export default function Profile() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingPassword, setSavingPassword]   = useState(false)
   const [showPasswords, setShowPasswords]     = useState(false)
+
+  // Avatar upload state
+  const avatarFileRef                         = useRef()
+  const [avatarPreview, setAvatarPreview]     = useState(null)  // base64 preview before save
+  const [savingAvatar, setSavingAvatar]       = useState(false)
 
   useEffect(() => { fetchData() }, [])
 
@@ -115,6 +145,38 @@ export default function Profile() {
     finally { setSavingPassword(false) }
   }
 
+  // ── Avatar handlers ──────────────────────────────────────────────────────
+  const handleAvatarFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { toast.error('Please select an image file'); return }
+    if (file.size > 10 * 1024 * 1024)   { toast.error('Image must be under 10MB');    return }
+    try {
+      const compressed = await compressImage(file, 300)
+      setAvatarPreview(compressed)
+    } catch { toast.error('Failed to process image') }
+    // reset input so same file can be re-selected
+    e.target.value = ''
+  }
+
+  const handleSaveAvatar = async () => {
+    if (!avatarPreview) return
+    setSavingAvatar(true)
+    try {
+      const res  = await fetch(`${API}/user/profile-image`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ profileImage: avatarPreview })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save')
+      toast.success('Profile photo updated!')
+      setProfile(prev => ({ ...prev, profileImage: avatarPreview }))
+      setAvatarPreview(null)
+    } catch (err) { toast.error(err.message) }
+    finally { setSavingAvatar(false) }
+  }
+
   const handleDisconnectLinkedIn = async () => {
     try {
       const res = await fetch(`${API}/user/linkedin-disconnect`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
@@ -156,22 +218,123 @@ export default function Profile() {
           </div>
         </div>
 
+        {/* ── Avatar preview modal ─────────────────────────────────────────── */}
+        {avatarPreview && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24
+          }}
+            onClick={() => setAvatarPreview(null)}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: '#111827', border: '1px solid #1e2535',
+                borderRadius: 20, padding: 28, width: '100%', maxWidth: 380,
+                boxShadow: '0 32px 64px rgba(0,0,0,0.5)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20
+              }}
+            >
+              {/* Close button */}
+              <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>Update profile photo</div>
+                <button onClick={() => setAvatarPreview(null)} style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', padding: 4 }}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Side-by-side: before / after */}
+              <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: '#4b5563', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current</div>
+                  {(profile?.profileImage || profile?.linkedinProfileImage) ? (
+                    <img src={profile.profileImage || profile.linkedinProfileImage} alt="current"
+                      style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', border: '2px solid #1e2535' }} />
+                  ) : (
+                    <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'linear-gradient(135deg, #10b981, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: '#fff', border: '2px solid #1e2535' }}>
+                      {profile?.name?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                  )}
+                </div>
+
+                {/* Arrow */}
+                <div style={{ fontSize: 20, color: '#10b981', fontWeight: 700 }}>→</div>
+
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: '#10b981', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>New</div>
+                  <img src={avatarPreview} alt="new"
+                    style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', border: '2px solid #10b981', boxShadow: '0 0 16px #10b98133' }} />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+                <button
+                  onClick={() => { setAvatarPreview(null); setTimeout(() => avatarFileRef.current?.click(), 50) }}
+                  style={{ flex: 1, padding: '11px 0', background: 'none', border: '1px solid #2a3245', borderRadius: 10, color: '#6b7280', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+                >
+                  Choose different
+                </button>
+                <button
+                  onClick={handleSaveAvatar}
+                  disabled={savingAvatar}
+                  style={{ flex: 2, padding: '11px 0', background: savingAvatar ? '#065f46' : '#10b981', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 600, cursor: savingAvatar ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
+                >
+                  {savingAvatar
+                    ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Saving...</>
+                    : '✓ Save photo'
+                  }
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Hidden file input */}
+        <input ref={avatarFileRef} type="file" accept="image/*" style={{ display: 'none' }}
+          onChange={handleAvatarFileChange} />
+
         {/* Avatar card — stacks on mobile */}
         <div style={{ ...cardStyle, display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 20, flexWrap: 'wrap' }}>
-          {(profile?.profileImage || profile?.linkedinProfileImage) ? (
-            <img src={profile.profileImage || profile.linkedinProfileImage} alt={profile?.name || 'avatar'}
-              style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '3px solid #10b98133', boxShadow: '0 0 20px #10b98122' }}
-              onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex' }}
-            />
-          ) : null}
-          <div style={{
-            width: 64, height: 64, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #10b981, #6366f1)',
-            display: (profile?.profileImage || profile?.linkedinProfileImage) ? 'none' : 'flex',
-            alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, color: '#fff', flexShrink: 0,
-            boxShadow: '0 0 20px #10b98122'
-          }}>
-            {profile?.name?.charAt(0)?.toUpperCase() || '?'}
+
+          {/* Clickable avatar */}
+          <div
+            onClick={() => avatarFileRef.current?.click()}
+            title="Click to change photo"
+            style={{ position: 'relative', flexShrink: 0, cursor: 'pointer' }}
+          >
+            {(profile?.profileImage || profile?.linkedinProfileImage) ? (
+              <img src={profile.profileImage || profile.linkedinProfileImage} alt={profile?.name || 'avatar'}
+                style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '3px solid #10b98133', boxShadow: '0 0 20px #10b98122', display: 'block' }}
+                onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex' }}
+              />
+            ) : null}
+            <div style={{
+              width: 72, height: 72, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #10b981, #6366f1)',
+              display: (profile?.profileImage || profile?.linkedinProfileImage) ? 'none' : 'flex',
+              alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 700, color: '#fff',
+              boxShadow: '0 0 20px #10b98122'
+            }}>
+              {profile?.name?.charAt(0)?.toUpperCase() || '?'}
+            </div>
+
+            {/* Hover overlay with camera icon */}
+            <div style={{
+              position: 'absolute', inset: 0, borderRadius: '50%',
+              background: 'rgba(0,0,0,0.55)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+              opacity: 0, transition: 'opacity 0.2s',
+              border: '3px solid #10b98166'
+            }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '0'}
+            >
+              <Camera size={18} color="#fff" />
+              <span style={{ fontSize: 8, color: '#fff', fontWeight: 600, letterSpacing: '0.03em' }}>CHANGE</span>
+            </div>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.name}</div>
@@ -352,6 +515,7 @@ export default function Profile() {
           )}
         </div>
       </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
