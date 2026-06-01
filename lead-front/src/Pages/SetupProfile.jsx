@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Camera, Upload, Check, ArrowRight, Loader2, X } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify'
 
-const API = import.meta.env.VITE_API_DB_URL
+import { apiFetch } from '../utils/api'
 
 function compressImage(file, maxSize = 200) {
   return new Promise((resolve, reject) => {
@@ -36,7 +36,6 @@ export default function SetupProfile() {
   const [base64,   setBase64]   = useState(null)
   const [saving,   setSaving]   = useState(false)
   const [dragging, setDragging] = useState(false)
-  const token = localStorage.getItem('token')
 
   const handleFile = async (file) => {
     if (!file) return
@@ -60,9 +59,8 @@ export default function SetupProfile() {
     if (!base64) return
     setSaving(true)
     try {
-      const res  = await fetch(`${API}/user/profile-image`, {
+      const res  = await apiFetch('/user/profile-image', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileImage: base64 })
       })
       const data = await res.json()

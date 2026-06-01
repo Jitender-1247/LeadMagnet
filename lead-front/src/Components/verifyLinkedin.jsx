@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import LeadLogo from '../assets/Images/logo.svg'
 import { Loader2, ShieldCheck } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify'
+import { apiFetch } from '../utils/api'
 
 export default function VerifyLinkedin() {
   const navigate = useNavigate()
-  const [otp, setOtp] = useState('')
+  const [otp,     setOtp]     = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleVerify = async (e) => {
@@ -19,28 +20,18 @@ export default function VerifyLinkedin() {
 
     setLoading(true)
     try {
-      const token = localStorage.getItem('token')
-
-      const res = await fetch(import.meta.env.VITE_API_DB_URL + '/auth/linkedin-verify-otp', {
+      const res  = await apiFetch('/auth/linkedin-verify-otp', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify({ otp })
       })
-
       const data = await res.json()
-      console.log('LinkedIn OTP verification response:', data)
 
       if (res.ok) {
         toast.success('LinkedIn connected successfully!')
 
         // Check if user already has a profile image — skip setup if so
         try {
-          const profileRes = await fetch(`${import.meta.env.VITE_API_DB_URL}/user/profile`, {
-            headers: { Authorization: `Bearer ${token}` }
-          })
+          const profileRes  = await apiFetch('/user/profile')
           const profileData = await profileRes.json()
           setTimeout(() => {
             if (profileData.profileImage || profileData.linkedinProfileImage) {
@@ -64,10 +55,6 @@ export default function VerifyLinkedin() {
     }
   }
 
-  const handleBack = () => {
-    navigate('/linkedin-connect')
-  }
-
   return (
     <>
       <ToastContainer position='top-center' theme='colored' />
@@ -89,7 +76,6 @@ export default function VerifyLinkedin() {
             </div>
           </div>
 
-          {/* Heading */}
           <h1 className="text-2xl font-bold text-white text-center mb-2">
             LinkedIn Verification
           </h1>
@@ -97,38 +83,27 @@ export default function VerifyLinkedin() {
             LinkedIn sent an OTP to your email or phone. Enter it below to complete the connection.
           </p>
 
-          {/* Form */}
           <form onSubmit={handleVerify} className="flex flex-col gap-4">
-
             <input
-              type="text"
-              placeholder="Enter OTP"
-              value={otp}
+              type="text" placeholder="Enter OTP" value={otp}
               onChange={(e) => setOtp(e.target.value)}
               maxLength={6}
               className="bg-[#1a1f26] text-white border border-gray-700 rounded-xl px-4 py-3 text-center text-2xl tracking-widest focus:outline-none focus:border-emerald-500"
               required
             />
 
-            <button
-              type="submit"
-              disabled={loading || otp.length === 0}
-              className="flex items-center justify-center gap-2 bg-[#0077b5] hover:bg-[#006097] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-6 py-3 rounded-xl transition"
-            >
+            <button type="submit" disabled={loading || otp.length === 0}
+              className="flex items-center justify-center gap-2 bg-[#0077b5] hover:bg-[#006097] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-6 py-3 rounded-xl transition">
               {loading
                 ? <><Loader2 className="w-5 h-5 animate-spin" /> Verifying...</>
                 : 'Verify & Connect'
               }
             </button>
 
-            <button
-              type="button"
-              onClick={handleBack}
-              className="text-gray-400 hover:text-white text-sm text-center transition"
-            >
+            <button type="button" onClick={() => navigate('/linkedin-connect')}
+              className="text-gray-400 hover:text-white text-sm text-center transition">
               ← Go back and try again
             </button>
-
           </form>
 
         </div>

@@ -4,6 +4,7 @@ import {
   BarChart2, MessageSquare, TrendingUp,
   Zap, Settings, LogOut, Plus, Menu, X
 } from 'lucide-react'
+import { apiFetch } from '../utils/api'
 
 const API = import.meta.env.VITE_API_DB_URL
 
@@ -85,18 +86,23 @@ export default function Layout() {
   const isMobile        = useIsMobile()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [profile, setProfile]       = useState(null)
-  const token = localStorage.getItem('token')
+  // No token needed — HttpOnly cookie is sent automatically by apiFetch
 
   useEffect(() => {
-    if (!token) return
-    fetch(`${API}/user/profile`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(setProfile).catch(() => {})
-  }, [token])
+    apiFetch('/user/profile')
+      .then(r => r?.json())
+      .then(data => data && setProfile(data))
+      .catch(() => {})
+  }, [])
 
   // Close drawer on route change
   useEffect(() => { setDrawerOpen(false) }, [location.pathname])
 
-  const handleLogout = () => { localStorage.clear(); navigate('/login') }
+  const handleLogout = async () => {
+    await apiFetch('/auth/logout', { method: 'POST' })
+    localStorage.removeItem('uid')
+    navigate('/login')
+  }
 
   const isActive = (path) => {
     if (path === '/dashboard') return location.pathname === '/dashboard'

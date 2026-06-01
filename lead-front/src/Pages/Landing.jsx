@@ -74,8 +74,12 @@ export default function Landing() {
   const [ctaRef,   ctaInView]       = useInView(0.3)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (token) navigate('/dashboard', { replace: true })
+    // Check if user has a valid session (cookie-based)
+    fetch(`${import.meta.env.VITE_API_DB_URL}/auth/me`, {
+      credentials: 'include'
+    })
+      .then(r => { if (r.ok) navigate('/dashboard', { replace: true }) })
+      .catch(() => {})
   }, [navigate])
 
   useEffect(() => {

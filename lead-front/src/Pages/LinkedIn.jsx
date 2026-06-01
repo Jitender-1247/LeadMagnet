@@ -1,68 +1,58 @@
-import React, { useState } from "react"
-import { useNavigate } from "react-router-dom"
-import LeadLogo from "../assets/Images/logo.svg"
-import { Linkedin, Eye, EyeOff, Loader2 } from "lucide-react"
-import { toast, ToastContainer } from "react-toastify"
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import LeadLogo from '../assets/Images/logo.svg'
+import { Linkedin, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { toast, ToastContainer } from 'react-toastify'
+import { apiFetch } from '../utils/api'
 
 export default function LinkedIn() {
   const navigate = useNavigate()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [email,        setEmail]        = useState('')
+  const [password,     setPassword]     = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const uid = localStorage.getItem("uid");
+  const [loading,      setLoading]      = useState(false)
 
   const handleLinkedInConnect = async (e) => {
     e.preventDefault()
 
     if (!email || !password) {
-      toast.error("Email and password are required")
+      toast.error('Email and password are required')
       return
     }
 
     setLoading(true)
     try {
-      const uid = localStorage.getItem("uid")
-
-      const res = await fetch(`${import.meta.env.VITE_API_DB_URL}/auth/linkedin-connect`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`
-        },
-        body: JSON.stringify({ email, password  })
+      const res  = await apiFetch('/auth/linkedin-connect', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
       })
-
-      const data = await res.json();
-      console.log("LinkedIn connect response:", data);
+      const data = await res.json()
 
       if (res.status === 202 && data.requiresOtp) {
-        toast.info("OTP sent to your LinkedIn email")
-        navigate("/verify-linkedin")
+        toast.info('OTP sent to your LinkedIn email')
+        navigate('/verify-linkedin')
         return
       }
 
       if (!res.ok) {
-        toast.error("Failed to connect LinkedIn! Check credentials and try again.")
+        toast.error('Failed to connect LinkedIn! Check credentials and try again.')
         return
       }
 
       // Check if user already has a profile image — skip setup if so
-      const profileRes = await fetch(`${import.meta.env.VITE_API_DB_URL}/user/profile`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-      })
+      const profileRes  = await apiFetch('/user/profile')
       const profileData = await profileRes.json()
 
-      toast.success("LinkedIn connected successfully!")
+      toast.success('LinkedIn connected successfully!')
       if (profileData.profileImage || profileData.linkedinProfileImage) {
-        navigate("/dashboard")
+        navigate('/dashboard')
       } else {
-        navigate("/setup-profile")
+        navigate('/setup-profile')
       }
 
     } catch (error) {
-      toast.error("Something went wrong. Please try again.")
-      console.error("LinkedIn connect error:", error)
+      toast.error('Something went wrong. Please try again.')
+      console.error('LinkedIn connect error:', error)
     } finally {
       setLoading(false)
     }
@@ -82,65 +72,42 @@ export default function LinkedIn() {
             </span>
           </div>
 
-          {/* Heading */}
           <h1 className="text-3xl font-bold text-white text-center mb-4">
             Connect your LinkedIn Account
           </h1>
-
           <p className="text-gray-400 text-center mb-10">
             To start automated outreach and campaigns, connect your LinkedIn account.
           </p>
 
-          {/* Form */}
           <form onSubmit={handleLinkedInConnect} className="flex flex-col gap-4 max-w-sm mx-auto">
-
-            <input
-              type="email"
-              placeholder="LinkedIn Email"
-              value={email}
+            <input type="email" placeholder="LinkedIn Email" value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="bg-[#1a1f26] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500"
-              required
-            />
+              required />
 
             <div className="relative">
               <input
-                type={showPassword ? "text" : "password"}
-                placeholder="LinkedIn Password"
-                value={password}
+                type={showPassword ? 'text' : 'password'}
+                placeholder="LinkedIn Password" value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-[#1a1f26] text-white border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 pr-12"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-              >
+                required />
+              <button type="button" onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex items-center justify-center gap-3 bg-[#0077b5] hover:bg-[#006097] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-6 py-3 rounded-xl transition"
-            >
-              {loading
-                ? <Loader2 className="w-5 h-5 animate-spin" />
-                : <Linkedin className="w-5 h-5" />
-              }
-              {loading ? "Connecting..." : "Connect LinkedIn"}
+            <button type="submit" disabled={loading}
+              className="flex items-center justify-center gap-3 bg-[#0077b5] hover:bg-[#006097] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-6 py-3 rounded-xl transition">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Linkedin className="w-5 h-5" />}
+              {loading ? 'Connecting...' : 'Connect LinkedIn'}
             </button>
 
-            <button
-              type="button"
-              onClick={() => navigate("/dashboard")}
-              className="text-gray-400 hover:text-white text-sm text-center transition mt-1"
-            >
+            <button type="button" onClick={() => navigate('/dashboard')}
+              className="text-gray-400 hover:text-white text-sm text-center transition mt-1">
               Skip for now — connect later from Settings
             </button>
-
           </form>
 
         </div>

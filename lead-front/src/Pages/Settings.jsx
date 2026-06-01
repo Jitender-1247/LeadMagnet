@@ -1,8 +1,7 @@
 import { User, Shield, Linkedin, Bell, Save, Link2Off } from 'lucide-react'
 import React, { useState, useEffect } from 'react'
 import { toast, ToastContainer } from 'react-toastify'
-
-const API = import.meta.env.VITE_API_DB_URL
+import { apiFetch } from '../utils/api'
 
 function useIsMobile() {
   const [w, setW] = useState(() => window.innerWidth)
@@ -32,12 +31,11 @@ export default function Settings() {
   const [notifications, setNotifications] = useState({ replies: true, accepted: true, meetings: true })
   const [saving, setSaving]               = useState(false)
   const isMobile                          = useIsMobile()
-  const token = localStorage.getItem('token')
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res  = await fetch(`${API}/user/profile`, { headers: { Authorization: `Bearer ${token}` } })
+        const res  = await apiFetch('/user/profile')
         const data = await res.json()
         setProfile({ name: data.name || '', email: data.email || '' })
         setLinkedinConnected(!!data.linkedinConnected)
@@ -49,9 +47,8 @@ export default function Settings() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await fetch(`${API}/user/profile`, {
+      await apiFetch('/user/profile', {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(profile)
       })
       toast.success('Settings saved')
@@ -61,7 +58,7 @@ export default function Settings() {
 
   const handleDisconnectLinkedIn = async () => {
     try {
-      await fetch(`${API}/auth/linkedin-disconnect`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      await apiFetch('/auth/linkedin-disconnect', { method: 'POST' })
       setLinkedinConnected(false)
       toast.success('LinkedIn disconnected')
     } catch { toast.error('Failed to disconnect') }

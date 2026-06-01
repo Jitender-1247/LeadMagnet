@@ -1,14 +1,12 @@
 import React, { useState } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ToastContainer, toast } from 'react-toastify'
 
 export default function VerifyEmail() {
-  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const uid      = localStorage.getItem('uid')
 
-  const uid = localStorage.getItem('uid');
-
-  const [otp, setOtp] = useState('')
+  const [otp,     setOtp]     = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleVerify = async (e) => {
@@ -22,16 +20,23 @@ export default function VerifyEmail() {
     try {
       setLoading(true)
 
-      const res = await fetch(import.meta.env.VITE_API_DB_URL + '/auth/verify-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid, otp })
-      })
+      const res = await fetch(
+        import.meta.env.VITE_API_DB_URL + '/auth/verify-email',
+        {
+          method: 'POST',
+          credentials: 'include',             // ← receive the HttpOnly cookie
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid, otp })
+        }
+      )
 
       const data = await res.json()
 
       if (res.ok) {
-        localStorage.setItem('token', data.token)
+        // Server sets the HttpOnly cookie — nothing to store here
+        // Clean up any stale token from old system
+        localStorage.removeItem('token')
+
         toast.success('Email verified successfully 🚀')
         setTimeout(() => navigate('/connect-linkedin'), 1000)
       } else {
@@ -40,6 +45,7 @@ export default function VerifyEmail() {
 
     } catch (err) {
       toast.error('Something went wrong')
+      console.error('Verify email error:', err)
     } finally {
       setLoading(false)
     }
@@ -47,19 +53,17 @@ export default function VerifyEmail() {
 
   const handleResend = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_DB_URL}/auth/resend-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid })
-      })
-
+      const res = await fetch(
+        `${import.meta.env.VITE_API_DB_URL}/auth/resend-otp`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid })
+        }
+      )
       const data = await res.json()
-
-      if (res.ok) {
-        toast.success('OTP resent to your email')
-      } else {
-        toast.error(data.error || 'Failed to resend OTP')
-      }
+      if (res.ok) toast.success('OTP resent to your email')
+      else        toast.error(data.error || 'Failed to resend OTP')
     } catch {
       toast.error('Error resending OTP')
     }
@@ -81,34 +85,22 @@ export default function VerifyEmail() {
           </p>
 
           <form onSubmit={handleVerify} className="space-y-5">
-
-            {/* OTP Input */}
             <input
-              type="text"
-              maxLength="6"
-              value={otp}
+              type="text" maxLength="6" value={otp}
               onChange={(e) => setOtp(e.target.value)}
               className="w-full text-center tracking-[10px] text-xl bg-[#0f1720] border border-gray-700 rounded-xl p-3 text-white outline-none focus:border-emerald-500"
               placeholder="------"
             />
 
-            {/* Verify Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition disabled:opacity-50"
-            >
+            <button type="submit" disabled={loading}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition disabled:opacity-50">
               {loading ? 'Verifying...' : 'Verify Email'}
             </button>
-
           </form>
 
-          {/* Resend OTP */}
           <div className="text-center mt-5">
-            <button
-              onClick={handleResend}
-              className="text-emerald-400 hover:underline text-sm"
-            >
+            <button onClick={handleResend}
+              className="text-emerald-400 hover:underline text-sm">
               Resend OTP
             </button>
           </div>

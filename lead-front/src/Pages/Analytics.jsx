@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { TrendingUp, Users, MessageSquare, Award } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify'
+import { apiFetch } from '../utils/api'
 
-const API = import.meta.env.VITE_API_DB_URL
+
 
 function useIsMobile() {
   const [w, setW] = useState(() => window.innerWidth)
@@ -60,8 +61,7 @@ export default function Analytics() {
   const [conversions, setConversions] = useState(null)
   const [loading, setLoading]         = useState(true)
   const [period, setPeriod]           = useState('7d')
-  const isMobile                      = useIsMobile()
-  const token = localStorage.getItem('token')
+  const isMobile = useIsMobile()
 
   useEffect(() => { fetchAnalytics() }, [period])
 
@@ -69,8 +69,8 @@ export default function Analytics() {
     setLoading(true)
     try {
       const [ovRes, cvRes] = await Promise.all([
-        fetch(`${API}/analytics/overview?period=${period}`,    { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API}/analytics/conversions?period=${period}`, { headers: { Authorization: `Bearer ${token}` } })
+        apiFetch(`/analytics/overview?period=${period}`),
+        apiFetch(`/analytics/conversions?period=${period}`)
       ])
       setOverview(await ovRes.json())
       setConversions(await cvRes.json())

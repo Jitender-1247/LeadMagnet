@@ -7,8 +7,7 @@ import {
   Camera, Loader2, X
 } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify'
-
-const API = import.meta.env.VITE_API_DB_URL
+import { apiFetch } from '../utils/api'
 
 function useIsMobile() {
   const [w, setW] = useState(() => window.innerWidth)
@@ -74,8 +73,6 @@ function compressImage(file, maxSize = 300) {
 export default function Profile() {
   const navigate  = useNavigate()
   const isMobile  = useIsMobile()
-  const token     = localStorage.getItem('token')
-
   const [profile, setProfile]             = useState(null)
   const [stats, setStats]                 = useState(null)
   const [loading, setLoading]             = useState(true)
@@ -98,8 +95,8 @@ export default function Profile() {
   const fetchData = async () => {
     try {
       const [profileRes, statsRes] = await Promise.all([
-        fetch(`${API}/user/profile`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API}/user/stats`,   { headers: { Authorization: `Bearer ${token}` } }),
+        apiFetch('/user/profile'),
+        apiFetch('/user/stats'),
       ])
       const profileData = await profileRes.json()
       const statsData   = await statsRes.json()
@@ -115,9 +112,8 @@ export default function Profile() {
     if (!name && !email) { toast.error('Nothing to update'); return }
     setSavingProfile(true)
     try {
-      const res  = await fetch(`${API}/user/profile`, {
+      const res  = await apiFetch('/user/profile', {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email })
       })
       const data = await res.json()
@@ -133,9 +129,8 @@ export default function Profile() {
     if (newPassword.length < 6) { toast.error('Password must be at least 6 characters'); return }
     setSavingPassword(true)
     try {
-      const res  = await fetch(`${API}/user/change-password`, {
+      const res  = await apiFetch('/user/change-password', {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword })
       })
       const data = await res.json()
@@ -163,10 +158,9 @@ export default function Profile() {
     if (!avatarPreview) return
     setSavingAvatar(true)
     try {
-      const res  = await fetch(`${API}/user/profile-image`, {
-        method:  'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ profileImage: avatarPreview })
+      const res  = await apiFetch('/user/profile-image', {
+        method: 'POST',
+        body: JSON.stringify({ profileImage: avatarPreview })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to save')
@@ -179,7 +173,7 @@ export default function Profile() {
 
   const handleDisconnectLinkedIn = async () => {
     try {
-      const res = await fetch(`${API}/user/linkedin-disconnect`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      const res = await apiFetch('/user/linkedin-disconnect', { method: 'POST' })
       if (res.ok) {
         toast.success('LinkedIn disconnected')
         setProfile(prev => ({ ...prev, linkedinConnected: false, linkedinEmail: null, linkedinConnectedAt: null }))

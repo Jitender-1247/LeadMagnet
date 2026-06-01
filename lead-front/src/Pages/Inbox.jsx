@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { RefreshCw, Send, User, Search, ArrowLeft } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify'
-
-const API = import.meta.env.VITE_API_DB_URL
+import { apiFetch } from '../utils/api'
 
 function useIsMobile() {
   const [w, setW] = useState(() => window.innerWidth)
@@ -25,14 +24,13 @@ export default function Inbox() {
   const [showThread, setShowThread] = useState(false) // mobile: show thread pane
   const bottomRef = useRef()
   const isMobile  = useIsMobile()
-  const token     = localStorage.getItem('token')
 
   useEffect(() => { fetchMessages() }, [])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [selected])
 
   const fetchMessages = async () => {
     try {
-      const res  = await fetch(`${API}/inbox/messages`, { headers: { Authorization: `Bearer ${token}` } })
+      const res  = await apiFetch('/inbox/messages')
       const data = await res.json()
       setMessages(data.messages || [])
       if (data.messages?.length > 0 && !isMobile) setSelected(data.messages[0])
@@ -43,7 +41,7 @@ export default function Inbox() {
   const handleSync = async () => {
     setSyncing(true)
     try {
-      const res  = await fetch(`${API}/inbox/sync`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      const res  = await apiFetch('/inbox/sync', { method: 'POST' })
       const data = await res.json()
       toast.success(`Synced ${data.messagesSynced} messages`)
       fetchMessages()
@@ -55,9 +53,8 @@ export default function Inbox() {
     if (!reply.trim() || !selected) return
     setSending(true)
     try {
-      const res = await fetch(`${API}/inbox/reply`, {
+      const res = await apiFetch('/inbox/reply', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ threadUrl: selected.threadUrl, message: reply })
       })
       if (res.ok) { toast.success('Reply sent!'); setReply('') }

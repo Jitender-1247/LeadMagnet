@@ -7,8 +7,7 @@ import {
   Zap, Timer
 } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify'
-
-const API = import.meta.env.VITE_API_DB_URL
+import { apiFetch } from '../utils/api'
 
 function useIsMobile() {
   const [w, setW] = useState(() => window.innerWidth)
@@ -254,8 +253,6 @@ export default function Leads() {
   const [launchMsg, setLaunchMsg]           = useState('')
   const [updatingStatus, setUpdatingStatus] = useState({})
   const [openDropdown, setOpenDropdown]     = useState(null)
-  const token = localStorage.getItem('token')
-
   useEffect(() => { fetchLeads(); fetchCampaign() }, [campaignId])
 
   useEffect(() => {
@@ -266,7 +263,7 @@ export default function Leads() {
 
   const fetchLeads = async () => {
     try {
-      const res  = await fetch(`${API}/campaigns/${campaignId}/leads`, { headers: { Authorization: `Bearer ${token}` } })
+      const res  = await apiFetch(`/campaigns/${campaignId}/leads`)
       const data = await res.json()
       setLeads(data.leads || [])
     } catch { toast.error('Failed to load leads') }
@@ -275,7 +272,7 @@ export default function Leads() {
 
   const fetchCampaign = async () => {
     try {
-      const res  = await fetch(`${API}/campaigns/${campaignId}`, { headers: { Authorization: `Bearer ${token}` } })
+      const res  = await apiFetch(`/campaigns/${campaignId}`)
       const data = await res.json()
       setCampaign(data)
       const ls = data.launchStatus
@@ -288,42 +285,19 @@ export default function Leads() {
   }
 
   const handleRunNow = async () => {
-    setLaunchState('running')
-    setLaunchMsg('Sending connections...')
+    setLaunchState('running'); setLaunchMsg('Sending connections...')
     try {
-      const res  = await fetch(`${API}/campaigns/${campaignId}/run-now`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-      })
-      const data = await res.json().catch(() => ({}))
-
-      if (res.ok) {
-        toast.success('⚡ Running campaign now!')
-        // Poll leads every 15s to show progress
-        const interval = setInterval(fetchLeads, 15000)
-        setTimeout(() => {
-          clearInterval(interval)
-          setLaunchState('done')
-          setLaunchMsg('Campaign run completed')
-          fetchLeads()
-        }, 20 * 60 * 1000)
-      } else {
-        toast.error(data.error || 'Failed to run campaign')
-        setLaunchState('queued')
-      }
-    } catch (err) {
-      toast.error(err.message || 'Network error')
-      setLaunchState('queued')
-    }
+      await apiFetch(`/campaigns/${campaignId}/run-now`, { method: 'POST' })
+      toast.success('⚡ Running campaign now!')
+    } catch { toast.error('Failed to run campaign'); setLaunchState('queued') }
   }
 
   const handleLaunch = async () => {
     if (!searchUrl.trim() || !searchUrl.includes('linkedin.com')) { toast.error('Please paste a valid LinkedIn search URL'); return }
     setLaunchState('launching'); setLaunchMsg('Starting up...')
     try {
-      const res = await fetch(`${API}/campaigns/${campaignId}/launch`, {
+      const res = await apiFetch(`/campaigns/${campaignId}/launch`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ searchUrl, maxLeads, force: true })
       })
       let data = {}
@@ -343,7 +317,7 @@ export default function Leads() {
 
   const handleCheckAccepted = async () => {
     try {
-      const res  = await fetch(`${API}/campaigns/${campaignId}/check-accepted`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      const res  = await apiFetch(`/campaigns/${campaignId}/check-accepted`, { method: 'POST' })
       const data = await res.json()
       if (res.ok) { toast.success('Checked connections!'); fetchLeads() }
       else toast.error(data.error || 'Check failed')
@@ -354,9 +328,8 @@ export default function Leads() {
     setUpdatingStatus(prev => ({ ...prev, [leadId]: true }))
     setOpenDropdown(null)
     try {
-      const res  = await fetch(`${API}/campaigns/leads/${leadId}/status`, {
+      const res  = await apiFetch(`/campaigns/leads/${leadId}/status`, {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       })
       const data = await res.json()

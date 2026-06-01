@@ -6,8 +6,7 @@ import {
   Activity, Clock
 } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify'
-
-const API = import.meta.env.VITE_API_DB_URL
+import { apiFetch } from '../utils/api'
 
 function useIsMobile() {
   const [w, setW] = useState(() => window.innerWidth)
@@ -20,7 +19,7 @@ function useIsMobile() {
 }
 
 // ── Import Leads Modal ────────────────────────────────────────────────────────
-function ImportLeadsModal({ campaign, onClose, token }) {
+function ImportLeadsModal({ campaign, onClose }) {
   const [searchUrl, setSearchUrl] = useState('')
   const [maxLeads, setMaxLeads]   = useState(25)
   const [loading, setLoading]     = useState(false)
@@ -32,9 +31,8 @@ function ImportLeadsModal({ campaign, onClose, token }) {
     }
     setLoading(true)
     try {
-      const res  = await fetch(`${API}/campaigns/${campaign.id}/import-leads`, {
+      const res  = await apiFetch(`/campaigns/${campaign.id}/import-leads`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ searchUrl, maxLeads })
       })
       const data = await res.json()
@@ -238,13 +236,11 @@ export default function Campaigns() {
   const [loading, setLoading]           = useState(true)
   const [search, setSearch]             = useState('')
   const [importTarget, setImportTarget] = useState(null)
-  const token = localStorage.getItem('token')
-
   useEffect(() => { fetchCampaigns() }, [])
 
   const fetchCampaigns = async () => {
     try {
-      const res  = await fetch(`${API}/campaigns`, { headers: { Authorization: `Bearer ${token}` } })
+      const res  = await apiFetch('/campaigns')
       const data = await res.json()
       setCampaigns(data.campaigns || [])
     } catch { toast.error('Failed to load campaigns') }
@@ -254,9 +250,8 @@ export default function Campaigns() {
   const toggleStatus = async (id, current) => {
     const next = current === 'active' ? 'paused' : 'active'
     try {
-      await fetch(`${API}/campaigns/${id}/status`, {
+      await apiFetch(`/campaigns/${id}/status`, {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: next })
       })
       setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: next } : c))
@@ -267,7 +262,7 @@ export default function Campaigns() {
   const deleteCampaign = async (id) => {
     if (!window.confirm('Delete this campaign? This cannot be undone.')) return
     try {
-      const res = await fetch(`${API}/campaigns/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      const res = await apiFetch(`/campaigns/${id}`, { method: 'DELETE' })
       if (!res.ok) { const data = await res.json(); throw new Error(data.error) }
       setCampaigns(prev => prev.filter(c => c.id !== id))
       toast.success('Campaign deleted')
@@ -281,7 +276,7 @@ export default function Campaigns() {
       <div style={{ minHeight: '100vh', background: '#0d1117', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif' }}>
         <ToastContainer theme="dark" />
 
-        {importTarget && <ImportLeadsModal campaign={importTarget} token={token} onClose={() => setImportTarget(null)} />}
+        {importTarget && <ImportLeadsModal campaign={importTarget} onClose={() => setImportTarget(null)} />}
 
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 16px' : '40px 32px' }}>
 

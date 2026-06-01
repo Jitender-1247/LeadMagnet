@@ -4,8 +4,7 @@ import {
   Users, MessageSquare, TrendingUp, Zap,
   Activity, ChevronRight, Bell, Plus
 } from 'lucide-react'
-
-const API = import.meta.env.VITE_API_DB_URL
+import { apiFetch } from '../utils/api'
 
 function useIsMobile() {
   const [w, setW] = useState(() => window.innerWidth)
@@ -62,14 +61,12 @@ export default function Dashboard() {
   const [campaigns, setCampaigns] = useState([])
   const [analytics, setAnalytics] = useState(null)
   const [loading, setLoading]     = useState(true)
-  const token = localStorage.getItem('token')
-
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [campRes, analRes] = await Promise.all([
-          fetch(`${API}/campaigns`,          { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${API}/analytics/overview`, { headers: { Authorization: `Bearer ${token}` } })
+          apiFetch('/campaigns'),
+          apiFetch('/analytics/overview')
         ])
         setCampaigns((await campRes.json()).campaigns || [])
         setAnalytics(await analRes.json())
