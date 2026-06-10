@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, createContext, useContext } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import Login           from './Pages/Login'
@@ -20,30 +20,36 @@ import SequenceBuilder from './Pages/SequenceBuilder'
 import SetupProfile    from './Pages/SetupProfile'
 import Landing         from './Pages/Landing'
 
-// ── Auth guard ────────────────────────────────────────────────────────────────
-// Checks the HttpOnly cookie via /auth/me instead of reading localStorage.
-// Shows nothing (null) while the check is in flight to avoid a flash of /login.
-function Protected({ children }) {
+export const AuthContext = createContext(null)
+function AuthProvider({ children }) {
   const [status, setStatus] = useState('loading') // 'loading' | 'ok' | 'unauth'
 
   useEffect(() => {
     fetch(import.meta.env.VITE_API_DB_URL + '/auth/me', {
       credentials: 'include'
     })
-      .then(res => {
-        setStatus(res.ok ? 'ok' : 'unauth')
-      })
+      .then(res => setStatus(res.ok ? 'ok' : 'unauth'))
       .catch(() => setStatus('unauth'))
-  }, [])
+  }, [])  // ← runs ONCE on app load, not on every navigation
 
-  if (status === 'loading') return null       // blank while checking — no flicker
+  return (
+    <AuthContext.Provider value={{ status, setStatus }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+function Protected({ children }) {
+  const { status } = useContext(AuthContext)
+  if (status === 'loading') return null
   if (status === 'unauth')  return <Navigate to="/login" replace />
   return children
 }
 
 export default function App() {
   return (
-    <Routes>
+    <AuthProvider>
+      <Routes>
 
       {/* ── Public routes — no sidebar, no auth required ── */}
       <Route path="/"                 element={<Landing />} />
@@ -78,5 +84,6 @@ export default function App() {
       </Route>
 
     </Routes>
+    </AuthProvider>
   )
 }

@@ -3,12 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import LeadLogo from '../assets/Images/logo.svg'
 import { Globe2Icon, Inbox, Lock, Mail, ZapIcon } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify'
-
+import {useContext} from 'react'
+import { AuthContext } from '../App'
 export default function Login() {
   const navigate = useNavigate()
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [loading,  setLoading]  = useState(false)
+  const { setStatus } = useContext(AuthContext)
+
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -29,9 +32,9 @@ export default function Login() {
         // Clear any stale token from the old localStorage-based system
         localStorage.removeItem('token')
         localStorage.setItem('uid', data.uid)
-
+        setStatus('ok')  // Update auth status in context
         toast.success('Login successful!')
-        setTimeout(() => navigate('/dashboard'), 1000)
+        setTimeout(() => navigate('/dashboard'), 800)
       } else if (response.status === 403 && data.requiresVerification) {
         // Email not verified — store uid so verify-email page can use it
         localStorage.setItem('uid', data.uid)
