@@ -247,7 +247,7 @@ export default function Leads() {
   const [filter, setFilter]                 = useState('all')
   const [view, setView]                     = useState('table')
   const [searchUrl, setSearchUrl]           = useState('')
-  const [maxLeads, setMaxLeads]             = useState(25)
+  const [maxLeads, setMaxLeads]             = useState(10)
   const [showLaunch, setShowLaunch]         = useState(false)
   const [launchState, setLaunchState]       = useState(null)
   const [launchMsg, setLaunchMsg]           = useState('')
@@ -376,7 +376,7 @@ export default function Leads() {
             <button onClick={() => setShowLaunch(s => !s)} disabled={!!launchState && launchState !== 'done'}
               style={{ display: 'flex', alignItems: 'center', gap: 7, background: launchState && launchState !== 'done' ? '#065f46' : '#10b981', color: '#fff', border: 'none', padding: isMobile ? '8px 14px' : '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: launchState && launchState !== 'done' ? 'not-allowed' : 'pointer' }}>
               <Zap size={14} />
-              {launchState === 'scraping' ? 'Scraping...' : launchState === 'running' ? 'Running...' : launchState === 'launching' ? 'Launching...' : launchState === 'done' ? 'Launch Again' : 'Launch'}
+              {launchState === 'scraping' ? 'Scraping...' : launchState === 'running' ? 'Running...' : launchState === 'launching' ? 'Launching...' : launchState === 'done' ? 'Launch Again' : 'Import & Launch'}
             </button>
           </div>
         </div>
@@ -439,7 +439,7 @@ export default function Leads() {
             />
 
             <div style={{ display: 'flex', gap: 7, marginBottom: 14, flexWrap: 'wrap' }}>
-              {[10, 25, 50, 100].map(n => (
+              {[10, 25, 50].map(n => (
                 <button key={n} onClick={() => setMaxLeads(n)} disabled={!!launchState && launchState !== 'done'}
                   style={{ padding: '7px 14px', borderRadius: 8, background: maxLeads === n ? '#10b981' : '#0d1117', border: `1px solid ${maxLeads === n ? '#10b981' : '#1e2535'}`, color: maxLeads === n ? '#fff' : '#6b7280', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   {n}

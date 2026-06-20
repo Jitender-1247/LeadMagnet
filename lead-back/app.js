@@ -10,13 +10,18 @@ dotenv.config();
 
 var indexRouter = require('./routes/index');
 var scheduler = require('./services/Scheduler');
+var linkedinAuthRouter = require('./routes/linkedinAuth');
 var app = express();
 app.set('trust proxy', 1);
 
 
 // 2. Apply CORS to all routes
 const corsOptions = {
-  origin: 'https://d1svf5jx051w0q.cloudfront.net',
+  origin: [
+    'http://localhost:5173',                        // local dev
+    'http://localhost:5174',                        // vite sometimes uses this
+    'https://d1svf5jx051w0q.cloudfront.net',       // your deployed frontend
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -35,6 +40,7 @@ app.use('/api/v1/campaigns', require('./routes/campaign'));
 app.use('/api/v1/inbox', require('./routes/inbox'));
 app.use('/api/v1/analytics', require('./routes/analytics'));
 app.use('/api/v1/user', require('./routes/user'));
+app.use('/api/v1/auth', linkedinAuthRouter);
 
 app.use('/', indexRouter);
 

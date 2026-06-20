@@ -1,7 +1,8 @@
-import { User, Shield, Linkedin, Bell, Save, Link2Off } from 'lucide-react'
+import { User, Shield, Linkedin, Bell, Save, Link2Off, UserCheck } from 'lucide-react'
 import React, { useState, useEffect } from 'react'
 import { toast, ToastContainer } from 'react-toastify'
 import { apiFetch } from '../utils/api'
+import LinkedInOAuthButton from '../Components/LinkedInOAuthButton'
 
 function useIsMobile() {
   const [w, setW] = useState(() => window.innerWidth)
@@ -28,6 +29,7 @@ const labelStyle = {
 export default function Settings() {
   const [profile, setProfile]             = useState({ name: '', email: '' })
   const [linkedinConnected, setLinkedinConnected] = useState(false)
+  const [linkedinOAuth, setLinkedinOAuth] = useState({ name: null, picture: null })
   const [notifications, setNotifications] = useState({ replies: true, accepted: true, meetings: true })
   const [saving, setSaving]               = useState(false)
   const isMobile                          = useIsMobile()
@@ -39,6 +41,10 @@ export default function Settings() {
         const data = await res.json()
         setProfile({ name: data.name || '', email: data.email || '' })
         setLinkedinConnected(!!data.linkedinConnected)
+        setLinkedinOAuth({
+          name:    data.linkedinOAuthName    || null,
+          picture: data.linkedinOAuthPicture || null,
+        })
       } catch {}
     }
     fetchProfile()
@@ -68,6 +74,8 @@ export default function Settings() {
     background: '#111827', border: '1px solid #1e2535',
     borderRadius: 16, padding: isMobile ? 20 : 28, marginBottom: 20
   }
+
+  const hasOAuthImport = !!(linkedinOAuth.name || linkedinOAuth.picture)
 
   return (
     <div style={{ minHeight: '100vh', background: '#0d1117', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif' }}>
@@ -101,22 +109,52 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* LinkedIn */}
+        {/* ── LinkedIn — now shows BOTH OAuth import AND automation status ── */}
         <div style={sectionStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
             <Linkedin size={15} color="#0077b5" />
             <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>LinkedIn Connection</div>
           </div>
+
+          {/* Row 1 — OAuth profile import */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap',
+            background: '#0d1117', borderRadius: 10, padding: 14, marginBottom: 16
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {hasOAuthImport && linkedinOAuth.picture ? (
+                <img src={linkedinOAuth.picture} alt="LinkedIn"
+                  style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: hasOAuthImport ? '#10b98122' : '#1e2535', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <UserCheck size={15} color={hasOAuthImport ? '#10b981' : '#4b5563'} />
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize: 13, color: hasOAuthImport ? '#10b981' : '#9ca3af', fontWeight: 500 }}>
+                  {hasOAuthImport ? `Profile imported: ${linkedinOAuth.name}` : 'Profile not imported'}
+                </div>
+                <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>Name & photo via LinkedIn sign-in</div>
+              </div>
+            </div>
+            {!hasOAuthImport && (
+              <div style={{ width: 160 }}>
+                <LinkedInOAuthButton mode="import" label="Import" style={{ padding: '7px 12px', fontSize: 12 }} />
+              </div>
+            )}
+          </div>
+
+          {/* Row 2 — Automation status */}
           <div style={{
             display: 'flex', alignItems: isMobile ? 'flex-start' : 'center',
             justifyContent: 'space-between', flexDirection: isMobile ? 'column' : 'row', gap: 16
           }}>
             <div>
               <div style={{ fontSize: 14, color: '#e2e8f0' }}>
-                {linkedinConnected ? 'LinkedIn account connected' : 'No LinkedIn account connected'}
+                {linkedinConnected ? 'Automation connected' : 'Automation not connected'}
               </div>
               <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
-                {linkedinConnected ? 'Your session is active and automation is enabled' : 'Connect your LinkedIn to start automated outreach'}
+                {linkedinConnected ? 'Your session is active and automation is enabled' : 'Required to send connections, messages & scrape leads'}
               </div>
             </div>
             <div>
@@ -130,7 +168,7 @@ export default function Settings() {
                   <Link2Off size={13} /> Disconnect
                 </button>
               ) : (
-                <a href="/linkedin-connect" style={{
+                <a href="/connect-linkedin" style={{
                   display: 'flex', alignItems: 'center', gap: 7,
                   background: '#0077b5', color: '#fff', border: 'none',
                   padding: '9px 16px', borderRadius: 9, fontSize: 13,

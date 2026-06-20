@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   User, Lock, Linkedin, Shield,
   Save, Link2Off, ArrowLeft, CheckCircle,
   XCircle, Zap, Users, MessageSquare, Award,
-  Camera, Loader2, X
+  Camera, Loader2, X, UserCheck
 } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify'
 import { apiFetch } from '../utils/api'
+import LinkedInOAuthButton from '../Components/LinkedInOAuthButton'
 
 function useIsMobile() {
   const [w, setW] = useState(() => window.innerWidth)
@@ -73,6 +74,7 @@ function compressImage(file, maxSize = 300) {
 export default function Profile() {
   const navigate  = useNavigate()
   const isMobile  = useIsMobile()
+  const [searchParams] = useSearchParams()
   const [profile, setProfile]             = useState(null)
   const [stats, setStats]                 = useState(null)
   const [loading, setLoading]             = useState(true)
@@ -87,10 +89,16 @@ export default function Profile() {
 
   // Avatar upload state
   const avatarFileRef                         = useRef()
-  const [avatarPreview, setAvatarPreview]     = useState(null)  // base64 preview before save
+  const [avatarPreview, setAvatarPreview]     = useState(null)
   const [savingAvatar, setSavingAvatar]       = useState(false)
 
   useEffect(() => { fetchData() }, [])
+
+  useEffect(() => {
+    if (searchParams.get('imported') === 'true') {
+      toast.success('LinkedIn profile imported! 🎉')
+    }
+  }, [])
 
   const fetchData = async () => {
     try {
@@ -150,7 +158,6 @@ export default function Profile() {
       const compressed = await compressImage(file, 300)
       setAvatarPreview(compressed)
     } catch { toast.error('Failed to process image') }
-    // reset input so same file can be re-selected
     e.target.value = ''
   }
 
@@ -192,6 +199,8 @@ export default function Profile() {
     borderRadius: 16, padding: isMobile ? 18 : 26, marginBottom: 18
   }
 
+  const hasOAuthImport = !!(profile?.linkedinOAuthName || profile?.linkedinOAuthPicture)
+
   return (
     <div style={{ minHeight: '100vh', background: '#0d1117', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif' }}>
       <ToastContainer theme="dark" position="top-right" />
@@ -231,7 +240,6 @@ export default function Profile() {
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20
               }}
             >
-              {/* Close button */}
               <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>Update profile photo</div>
                 <button onClick={() => setAvatarPreview(null)} style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', padding: 4 }}>
@@ -239,7 +247,6 @@ export default function Profile() {
                 </button>
               </div>
 
-              {/* Side-by-side: before / after */}
               <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 11, color: '#4b5563', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current</div>
@@ -253,7 +260,6 @@ export default function Profile() {
                   )}
                 </div>
 
-                {/* Arrow */}
                 <div style={{ fontSize: 20, color: '#10b981', fontWeight: 700 }}>→</div>
 
                 <div style={{ textAlign: 'center' }}>
@@ -263,7 +269,6 @@ export default function Profile() {
                 </div>
               </div>
 
-              {/* Actions */}
               <div style={{ display: 'flex', gap: 10, width: '100%' }}>
                 <button
                   onClick={() => { setAvatarPreview(null); setTimeout(() => avatarFileRef.current?.click(), 50) }}
@@ -290,17 +295,16 @@ export default function Profile() {
         <input ref={avatarFileRef} type="file" accept="image/*" style={{ display: 'none' }}
           onChange={handleAvatarFileChange} />
 
-        {/* Avatar card — stacks on mobile */}
+        {/* Avatar card */}
         <div style={{ ...cardStyle, display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 20, flexWrap: 'wrap' }}>
 
-          {/* Clickable avatar */}
           <div
             onClick={() => avatarFileRef.current?.click()}
             title="Click to change photo"
             style={{ position: 'relative', flexShrink: 0, cursor: 'pointer' }}
           >
-            {(profile?.profileImage || profile?.linkedinProfileImage) ? (
-              <img src={profile.profileImage || profile.linkedinProfileImage} alt={profile?.name || 'avatar'}
+            {(profile?.profileImage || profile?.linkedinProfileImage || profile?.linkedinOAuthPicture) ? (
+              <img src={profile.profileImage || profile.linkedinProfileImage || profile.linkedinOAuthPicture} alt={profile?.name || 'avatar'}
                 style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '3px solid #10b98133', boxShadow: '0 0 20px #10b98122', display: 'block' }}
                 onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex' }}
               />
@@ -308,14 +312,13 @@ export default function Profile() {
             <div style={{
               width: 72, height: 72, borderRadius: '50%',
               background: 'linear-gradient(135deg, #10b981, #6366f1)',
-              display: (profile?.profileImage || profile?.linkedinProfileImage) ? 'none' : 'flex',
+              display: (profile?.profileImage || profile?.linkedinProfileImage || profile?.linkedinOAuthPicture) ? 'none' : 'flex',
               alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 700, color: '#fff',
               boxShadow: '0 0 20px #10b98122'
             }}>
               {profile?.name?.charAt(0)?.toUpperCase() || '?'}
             </div>
 
-            {/* Hover overlay with camera icon */}
             <div style={{
               position: 'absolute', inset: 0, borderRadius: '50%',
               background: 'rgba(0,0,0,0.55)',
@@ -337,9 +340,14 @@ export default function Profile() {
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: profile?.isVerified ? '#10b98122' : '#f59e0b22', color: profile?.isVerified ? '#10b981' : '#f59e0b' }}>
                 {profile?.isVerified ? <><CheckCircle size={11} /> Verified</> : <><XCircle size={11} /> Unverified</>}
               </span>
+              {hasOAuthImport && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: '#10b98122', color: '#10b981' }}>
+                  <UserCheck size={11} /> Profile Imported
+                </span>
+              )}
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: profile?.linkedinConnected ? '#0077b522' : '#1e2535', color: profile?.linkedinConnected ? '#0ea5e9' : '#4b5563' }}>
                 <Linkedin size={11} />
-                {profile?.linkedinConnected ? 'LinkedIn Connected' : 'Not Connected'}
+                {profile?.linkedinConnected ? 'Automation Connected' : 'Automation Not Connected'}
               </span>
             </div>
           </div>
@@ -353,7 +361,7 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Stats — 2 cols on mobile, 4 on desktop */}
+        {/* Stats */}
         {stats && (
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: isMobile ? 10 : 12, marginBottom: 18 }}>
             <StatBadge label="Campaigns"   value={stats.totalCampaigns} color="#6366f1" icon={Zap} />
@@ -392,7 +400,7 @@ export default function Profile() {
           </button>
         </div>
 
-        {/* LinkedIn */}
+        {/* ── LinkedIn — now shows BOTH states clearly ─────────────────────── */}
         <div style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
             <div style={{ width: 30, height: 30, borderRadius: 9, background: '#0077b522', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -401,6 +409,35 @@ export default function Profile() {
             <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>LinkedIn Account</div>
           </div>
 
+          {/* Row 1 — OAuth profile import status */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap',
+            background: '#0d1117', borderRadius: 12, padding: 16, marginBottom: 14
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {hasOAuthImport && profile?.linkedinOAuthPicture ? (
+                <img src={profile.linkedinOAuthPicture} alt="LinkedIn"
+                  style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ width: 38, height: 38, borderRadius: '50%', background: hasOAuthImport ? '#10b98122' : '#1e2535', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <UserCheck size={16} color={hasOAuthImport ? '#10b981' : '#4b5563'} />
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: hasOAuthImport ? '#10b981' : '#9ca3af' }}>
+                  {hasOAuthImport ? `Imported: ${profile.linkedinOAuthName}` : 'Profile not imported yet'}
+                </div>
+                <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>Name & photo via LinkedIn sign-in</div>
+              </div>
+            </div>
+            {!hasOAuthImport && (
+              <div style={{ width: 170 }}>
+                <LinkedInOAuthButton mode="import" label="Import Profile" style={{ padding: '8px 14px', fontSize: 12 }} />
+              </div>
+            )}
+          </div>
+
+          {/* Row 2 — Automation connection status */}
           {profile?.linkedinConnected ? (
             <div>
               <div style={{ background: '#0d1117', borderRadius: 12, padding: 16, marginBottom: 14 }}>
@@ -408,9 +445,9 @@ export default function Profile() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
                       <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981' }} />
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#10b981' }}>Connected</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#10b981' }}>Automation Connected</span>
                     </div>
-                    <div style={{ fontSize: 13, color: '#9ca3af' }}>{profile.linkedinEmail || 'LinkedIn account active'}</div>
+                    <div style={{ fontSize: 13, color: '#9ca3af' }}>{profile.linkedinEmail || 'LinkedIn session active'}</div>
                     {profile.linkedinConnectedAt && (
                       <div style={{ fontSize: 12, color: '#4b5563', marginTop: 3 }}>
                         Connected {new Date(profile.linkedinConnectedAt).toLocaleDateString()}
@@ -441,14 +478,14 @@ export default function Profile() {
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontSize: 14, color: '#9ca3af' }}>No LinkedIn account connected</div>
-                <div style={{ fontSize: 13, color: '#4b5563', marginTop: 3 }}>Connect your LinkedIn to start automated outreach</div>
+                <div style={{ fontSize: 14, color: '#9ca3af' }}>Automation not connected</div>
+                <div style={{ fontSize: 13, color: '#4b5563', marginTop: 3 }}>Required to send connections, messages & scrape leads</div>
               </div>
               <button onClick={() => navigate('/connect-linkedin')} style={{
                 display: 'flex', alignItems: 'center', gap: 7, background: '#0077b5', color: '#fff',
                 border: 'none', padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer'
               }}>
-                <Linkedin size={14} /> Connect LinkedIn
+                <Linkedin size={14} /> Connect for Automation
               </button>
             </div>
           )}

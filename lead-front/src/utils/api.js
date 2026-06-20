@@ -1,28 +1,39 @@
 const BASE = import.meta.env.VITE_API_DB_URL
 
 /**
- * Drop-in replacement for fetch() across the entire app.
- * - Always sends the HttpOnly cookie (credentials: 'include')
- * - Always sets Content-Type: application/json
+ * Central fetch wrapper for all API calls.
+ *
+ * - Always sends HttpOnly cookie (credentials: 'include')
+ * - Also sends Authorization header if token exists in localStorage
+ *   (fallback for local dev where cross-origin cookies don't work)
  * - Auto-redirects to /login on 401
- * - Returns the raw Response so callers can still do res.json(), res.ok, etc.
  */
 export async function apiFetch(path, options = {}) {
-    const res = await fetch(`${BASE}${path}`, {
-        ...options,
-        credentials: 'include',         // send HttpOnly cookie on every request
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,         // allow callers to override/add headers
-        },
-    })
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  }
 
-    // Session expired or not authenticated — redirect to login
-    if (res.status === 401) {
-        localStorage.removeItem('uid')
-        window.location.href = '/login'
-        return res
-    }
+  // Attach token as Authorization header if available
+  // This makes local dev work even when cookies can't be sent cross-origin
+  const token = localStorage.getItem('token')
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
 
+  const res = await fetch(`${BASE}${path}`, {
+    ...options,
+    credentials: 'include',   // always try to send cookie too
+    headers,
+  })
+
+  // Session expired or not authenticated — clear and redirect
+  if (res.status === 401) {
+    localStorage.removeItem('uid')
+    localStorage.removeItem('token')
+    window.location.href = '/login'
     return res
+  }
+
+  return res
 }

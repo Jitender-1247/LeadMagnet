@@ -1,10 +1,13 @@
-import React, { useState } from 'react'
+import React, { useState, useContext } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ToastContainer, toast } from 'react-toastify'
+import { AuthContext } from '../App'
+import { notifyExtension } from '../utils/extensionBridge'
 
 export default function VerifyEmail() {
-  const navigate = useNavigate()
-  const uid      = localStorage.getItem('uid')
+  const navigate       = useNavigate()
+  const { setStatus }  = useContext(AuthContext)
+  const uid            = localStorage.getItem('uid')
 
   const [otp,     setOtp]     = useState('')
   const [loading, setLoading] = useState(false)
@@ -23,22 +26,32 @@ export default function VerifyEmail() {
       const res = await fetch(
         import.meta.env.VITE_API_DB_URL + '/auth/verify-email',
         {
-          method: 'POST',
-          credentials: 'include',             // ← receive the HttpOnly cookie
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uid, otp })
+          method:      'POST',
+          credentials: 'include',
+          headers:     { 'Content-Type': 'application/json' },
+          body:        JSON.stringify({ uid, otp })
         }
       )
 
       const data = await res.json()
 
       if (res.ok) {
-        // Server sets the HttpOnly cookie — nothing to store here
-        // Clean up any stale token from old system
+        // Clear any stale old token
         localStorage.removeItem('token')
 
+        // Store token for local dev (cross-origin cookie fallback)
+        if (data.token) {
+          localStorage.setItem('token', data.token)
+        }
+
+        // Sync auth to the StealthLead browser extension (if installed)
+        notifyExtension(uid, data.token)
+
+        // Tell AuthProvider user is authenticated — prevents Protected redirect
+        setStatus('ok')
+
         toast.success('Email verified successfully 🚀')
-        setTimeout(() => navigate('/connect-linkedin'), 1000)
+        setTimeout(() => navigate('/connect-linkedin'), 500)
       } else {
         toast.error(data.error || 'Verification failed')
       }
@@ -56,9 +69,9 @@ export default function VerifyEmail() {
       const res = await fetch(
         `${import.meta.env.VITE_API_DB_URL}/auth/resend-otp`,
         {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uid })
+          body:    JSON.stringify({ uid })
         }
       )
       const data = await res.json()

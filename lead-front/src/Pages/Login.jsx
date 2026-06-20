@@ -1,17 +1,26 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useContext } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import LeadLogo from '../assets/Images/logo.svg'
 import { Globe2Icon, Inbox, Lock, Mail, ZapIcon } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify'
-import {useContext} from 'react'
 import { AuthContext } from '../App'
+import LinkedInOAuthButton from '../Components/LinkedInOAuthButton'
+import { notifyExtension } from '../utils/extensionBridge'
+
 export default function Login() {
-  const navigate = useNavigate()
+  const navigate            = useNavigate()
+  const [searchParams]      = useSearchParams()
+  const { setStatus }       = useContext(AuthContext)
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [loading,  setLoading]  = useState(false)
-  const { setStatus } = useContext(AuthContext)
 
+  // Show error from OAuth redirect if any
+  React.useEffect(() => {
+    const error = searchParams.get('error')
+    if (error === 'linkedin_denied') toast.error('LinkedIn login was cancelled')
+    if (error === 'oauth_failed')    toast.error('LinkedIn login failed. Please try again.')
+  }, [])
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -20,23 +29,26 @@ export default function Login() {
       const response = await fetch(
         import.meta.env.VITE_API_DB_URL + '/auth/platform-login',
         {
-          method: 'POST',
-          credentials: 'include',               // ← receive the HttpOnly cookie
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
+          method:      'POST',
+          credentials: 'include',
+          headers:     { 'Content-Type': 'application/json' },
+          body:        JSON.stringify({ email, password })
         }
       )
       const data = await response.json()
 
       if (response.ok) {
-        // Clear any stale token from the old localStorage-based system
         localStorage.removeItem('token')
         localStorage.setItem('uid', data.uid)
-        setStatus('ok')  // Update auth status in context
+        if (data.token) localStorage.setItem('token', data.token)
+
+        // Sync auth to the StealthLead browser extension (if installed)
+        notifyExtension(data.uid, data.token)
+
+        setStatus('ok')
         toast.success('Login successful!')
-        setTimeout(() => navigate('/dashboard'), 800)
+        setTimeout(() => navigate('/dashboard'), 500)
       } else if (response.status === 403 && data.requiresVerification) {
-        // Email not verified — store uid so verify-email page can use it
         localStorage.setItem('uid', data.uid)
         toast.error('Please verify your email first')
         setTimeout(() => navigate('/verify-email'), 1000)
@@ -70,21 +82,31 @@ export default function Login() {
                 Automate with <span className='text-emerald-500 font-medium'>Confidence.</span>
               </h1>
               <div className="space-y-3 mt-8">
-                <div className="flex items-center gap-4 text-gray-200 font-mono text-lg"><ZapIcon className="text-emerald-400 w-5 h-7" /> <span>Human Behavior Simulation</span></div>
-                <div className="flex items-center gap-4 text-gray-200 font-mono text-lg"><Globe2Icon className="text-emerald-400 w-5 h-7" /> <span>Dedicated Residential Proxy</span></div>
-                <div className="flex items-center gap-4 text-gray-200 font-mono text-lg"><Inbox className="text-emerald-400 w-5 h-7" /> <span>Centralized Lead Inbox</span></div>
+                <div className="flex items-center gap-4 text-gray-200 font-mono text-lg"><ZapIcon className="text-emerald-400 w-5 h-7" /><span>Human Behavior Simulation</span></div>
+                <div className="flex items-center gap-4 text-gray-200 font-mono text-lg"><Globe2Icon className="text-emerald-400 w-5 h-7" /><span>Dedicated Residential Proxy</span></div>
+                <div className="flex items-center gap-4 text-gray-200 font-mono text-lg"><Inbox className="text-emerald-400 w-5 h-7" /><span>Centralized Lead Inbox</span></div>
               </div>
             </div>
           </div>
 
           {/* Right Panel */}
           <div className='p-12 bg-[#392f34]'>
-            <form onSubmit={handleLogin}>
-              <h2 className="text-2xl font-bold text-white mb-6 text-center">
-                Welcome to Stealth<span className="text-emerald-500">Lead</span>
-              </h2>
-              <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-white mb-6 text-center">
+              Welcome to Stealth<span className="text-emerald-500">Lead</span>
+            </h2>
 
+            {/* LinkedIn OAuth button */}
+            <LinkedInOAuthButton mode="login" label="Sign in with LinkedIn" />
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 my-5">
+              <div className="flex-1 h-px bg-gray-700" />
+              <span className="text-gray-500 text-sm">or sign in with email</span>
+              <div className="flex-1 h-px bg-gray-700" />
+            </div>
+
+            <form onSubmit={handleLogin}>
+              <div className="space-y-4">
                 <div className="flex items-center bg-[#302a2a] border border-gray-700 rounded-xl px-3">
                   <Mail className="text-white w-5 h-5 mr-2" />
                   <input type="email" placeholder="Enter your email" value={email}
@@ -108,7 +130,6 @@ export default function Login() {
                   Don't have an account?{' '}
                   <a href="/register" className="text-emerald-500 hover:underline">Sign up</a>
                 </span>
-
               </div>
             </form>
           </div>

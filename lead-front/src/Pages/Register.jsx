@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import LeadLogo from '../assets/Images/logo.svg'
 import { User, Mail, Lock, ZapIcon, Globe2Icon, Inbox } from 'lucide-react'
 import { toast, ToastContainer } from 'react-toastify'
+import LinkedInOAuthButton from '../Components/LinkedInOAuthButton'
 
 export default function Register() {
   const navigate = useNavigate()
@@ -20,19 +21,16 @@ export default function Register() {
       const response = await fetch(
         import.meta.env.VITE_API_DB_URL + '/auth/register',
         {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, name })
+          body:    JSON.stringify({ email, password, name })
         }
       )
       const data = await response.json()
 
       if (response.ok) {
-        // No token issued yet — user must verify email first
-        // Clear any stale token from old system
         localStorage.removeItem('token')
         localStorage.setItem('uid', data.uid)
-
         toast.success('Registration successful!')
         setTimeout(() => navigate('/verify-email'), 1000)
       } else {
@@ -80,12 +78,22 @@ export default function Register() {
 
           {/* Right Panel */}
           <div className='p-12 bg-[#392f34]'>
-            <form onSubmit={handleRegister}>
-              <h2 className="text-2xl font-bold text-white mb-8 text-center mt-2">
-                Create your Stealth<span className="text-emerald-500">Lead</span> Account
-              </h2>
-              <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-white mb-6 text-center mt-2">
+              Create your Stealth<span className="text-emerald-500">Lead</span> Account
+            </h2>
 
+            {/* LinkedIn OAuth — one-click signup */}
+            <LinkedInOAuthButton mode="login" label="Sign up with LinkedIn" />
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 my-5">
+              <div className="flex-1 h-px bg-gray-700" />
+              <span className="text-gray-500 text-sm">or sign up with email</span>
+              <div className="flex-1 h-px bg-gray-700" />
+            </div>
+
+            <form onSubmit={handleRegister}>
+              <div className="space-y-4">
                 <div className="flex items-center bg-[#302a2a] border border-gray-700 rounded-xl px-3">
                   <User className="text-white w-5 h-5 mr-2" />
                   <input type="text" placeholder="Full Name" value={name}
@@ -137,7 +145,6 @@ export default function Register() {
                   Already have an account?{' '}
                   <a href="/login" className="text-emerald-500 hover:underline">Sign in</a>
                 </span>
-
               </div>
             </form>
           </div>
